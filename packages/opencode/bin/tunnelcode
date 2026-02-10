@@ -1,0 +1,17 @@
+#!/bin/sh
+# GPTunnel defaults (lowest priority — user config overrides)
+export OPENCODE_CONFIG_CONTENT="${OPENCODE_CONFIG_CONTENT:-$(cat <<'JSON'
+{
+  "enabled_providers": ["gptunnel"],
+  "provider": {
+    "gptunnel": {
+      "name": "GPTunnel",
+      "api": "https://gptunnel.ru/v1",
+      "npm": "@ai-sdk/openai-compatible",
+      "env": ["GPTUNNEL_API_KEY"]
+    }
+  }
+}
+JSON
+)}"
+exec "$(dirname "$0")/opencode" "$@"
