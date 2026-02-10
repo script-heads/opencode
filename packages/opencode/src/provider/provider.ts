@@ -16,6 +16,7 @@ import { Flag } from "../flag/flag"
 import { iife } from "@/util/iife"
 import { Global } from "../global"
 import path from "path"
+import { gptunnelCustomLoader } from "../gptunnel/provider-loader"
 
 // Direct imports for bundled providers
 import { createAmazonBedrock, type AmazonBedrockProviderSettings } from "@ai-sdk/amazon-bedrock"
@@ -578,6 +579,7 @@ export namespace Provider {
         },
       }
     },
+    gptunnel: gptunnelCustomLoader,
   }
 
   export const Model = z
@@ -961,7 +963,9 @@ export namespace Provider {
       if (result && (result.autoload || providers[providerID])) {
         if (result.getModel) modelLoaders[providerID] = result.getModel
         const opts = result.options ?? {}
-        const patch: Partial<Info> = providers[providerID] ? { options: opts } : { source: "custom", options: opts }
+        const patch: Partial<Info> = providers[providerID]
+          ? { options: opts, models: data.models }
+          : { source: "custom", options: opts }
         mergeProvider(providerID, patch)
       }
     }
