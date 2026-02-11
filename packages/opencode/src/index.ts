@@ -1,3 +1,4 @@
+import "./gptunnel/defaults"
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
 import { RunCommand } from "./cli/cmd/run"

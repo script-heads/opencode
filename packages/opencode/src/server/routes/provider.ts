@@ -53,8 +53,28 @@ export const ProviderRoutes = lazy(() =>
           mapValues(filteredProviders, (x) => Provider.fromModelsDevProvider(x)),
           connected,
         )
+
+        // Include providers with auth methods in `all` for the "Connect" dialog,
+        // even when they have no models yet (e.g. custom providers not on models.dev)
+        const all = Object.values(providers)
+        const authMethods = await ProviderAuth.methods()
+        for (const providerID of Object.keys(authMethods)) {
+          if (providers[providerID]) continue
+          if (enabled && !enabled.has(providerID)) continue
+          if (disabled.has(providerID)) continue
+          const cfg = config.provider?.[providerID]
+          all.push({
+            id: providerID,
+            name: cfg?.name ?? providerID,
+            models: {},
+            env: cfg?.env ?? [],
+            source: "custom",
+            options: {},
+          } as Provider.Info)
+        }
+
         return c.json({
-          all: Object.values(providers),
+          all,
           default: mapValues(providers, (item) => Provider.sort(Object.values(item.models))[0].id),
           connected: Object.keys(connected),
         })
