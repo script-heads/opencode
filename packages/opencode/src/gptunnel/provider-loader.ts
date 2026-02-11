@@ -169,13 +169,6 @@ async function writeGptunnelCache(models: Record<string, Provider.Model>) {
 }
 
 export async function gptunnelCustomLoader(input: Provider.Info) {
-  const cache = await readGptunnelCache()
-  const cachedModels = cache?.models
-  if (cachedModels && Date.now() - cache.updated_at <= gptunnelTTL && Object.keys(cachedModels).length > 0) {
-    input.models = cachedModels
-    return { autoload: true }
-  }
-
   const config = await Config.get()
   const auth = await Auth.get("gptunnel")
   const configKey = config.provider?.gptunnel?.options?.apiKey
@@ -184,6 +177,13 @@ export async function gptunnelCustomLoader(input: Provider.Info) {
 
   if (!apiKey) {
     return { autoload: false }
+  }
+
+  const cache = await readGptunnelCache()
+  const cachedModels = cache?.models
+  if (cachedModels && Date.now() - cache.updated_at <= gptunnelTTL && Object.keys(cachedModels).length > 0) {
+    input.models = cachedModels
+    return { autoload: true }
   }
 
   const models = await fetch(`${GPTUNNEL_API_URL}/models?code`, {

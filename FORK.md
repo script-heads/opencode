@@ -10,7 +10,9 @@
 
 | Файл | Назначение |
 |------|-----------|
+| `packages/opencode/src/gptunnel/defaults.ts` | Дефолтный конфиг: `OPENCODE_CONFIG_CONTENT` с `enabled_providers` |
 | `packages/opencode/src/gptunnel/provider-loader.ts` | Custom loader: загрузка моделей с GPTunnel API, кеширование |
+| `packages/opencode/src/gptunnel/auth.ts` | Auth-плагин: OAuth code flow для ввода API-ключа со ссылкой на profile |
 | `packages/opencode/bin/tunnelcode` | Shell-скрипт launcher: устанавливает дефолтный конфиг и запускает opencode |
 | `packages/opencode/test/provider/gptunnel.test.ts` | Тесты GPTunnel провайдера |
 | `FORK.md` | Этот файл |
@@ -22,8 +24,10 @@
 | Файл | Что изменено | Риск конфликта |
 |------|-------------|----------------|
 | `src/cli/logo.ts` | Лого TunnelCode | ~0% (файл почти не меняется) |
-| `src/index.ts` | `.scriptName("tunnelcode")` | ~0% |
+| `src/index.ts` | `+import "./gptunnel/defaults"`, `.scriptName("tunnelcode")` | ~0% |
 | `src/provider/provider.ts` | +import `gptunnelCustomLoader`, +`gptunnel:` в `CUSTOM_LOADERS`, +`models: data.models` в patch | ~5% |
+| `src/plugin/index.ts` | +import GptunnelAuthPlugin, +entry в INTERNAL_PLUGINS | ~3% |
+| `src/server/routes/provider.ts` | Auth-method провайдеры в `all` для "Connect" диалога | ~5% |
 | `script/build.ts` | outfile/user-agent → `tunnelcode` | ~10% |
 | `package.json` | +`"tunnelcode"` в секции `bin` | тривиальный |
 
@@ -48,8 +52,14 @@ bun run build -- --single
 **build.ts** — upstream изменил параметры сборки:
 → Принять upstream, заменить `opencode` на `tunnelcode` в outfile/execArgv.
 
+**plugin/index.ts** — upstream добавил новый internal plugin:
+→ Принять upstream, добавить `GptunnelAuthPlugin` в конец массива `INTERNAL_PLUGINS`.
+
 **package.json** — upstream обновил версии:
 → Принять upstream, убедиться что `"tunnelcode": "./bin/tunnelcode"` в секции `bin`.
+
+**routes/provider.ts** — upstream изменил route handler для `/`:
+→ Принять upstream, добавить блок `const all = Object.values(providers)` + auth-methods loop после `providers`. Заменить `all: Object.values(providers)` на `all,` в return.
 
 ## Как безопасно кастомить
 
