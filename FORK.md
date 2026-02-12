@@ -13,6 +13,9 @@
 | `packages/opencode/src/gptunnel/defaults.ts` | Дефолтный конфиг: `OPENCODE_CONFIG_CONTENT` с `enabled_providers` |
 | `packages/opencode/src/gptunnel/provider-loader.ts` | Custom loader: загрузка моделей с GPTunnel API, кеширование |
 | `packages/opencode/src/gptunnel/auth.ts` | Auth-плагин: OAuth code flow для ввода API-ключа со ссылкой на profile |
+| `packages/opencode/src/gptunnel/install.sh` | Curl-установщик для пользователей (`curl -fsSL gptunnel.ru/install.sh \| bash`) |
+| `packages/opencode/src/gptunnel/release.sh` | Сборка + переименование архивов opencode-* → tunnelcode-* |
+| `packages/opencode/src/gptunnel/upload.sh` | Загрузка архивов на сервер gptunnel.ru |
 | `packages/opencode/bin/tunnelcode` | Shell-скрипт launcher: устанавливает дефолтный конфиг и запускает opencode |
 | `packages/opencode/test/provider/gptunnel.test.ts` | Тесты GPTunnel провайдера |
 | `FORK.md` | Этот файл |
@@ -30,6 +33,15 @@
 | `src/server/routes/provider.ts` | Auth-method провайдеры в `all` для "Connect" диалога | ~5% |
 | `script/build.ts` | outfile/user-agent → `tunnelcode` | ~10% |
 | `package.json` | +`"tunnelcode"` в секции `bin` | тривиальный |
+| `src/cli/cmd/upgrade.ts` | describe + log-сообщения → tunnelcode | ~2% (describe редко меняется) |
+| `src/cli/cmd/uninstall.ts` | describe, intro, thank-you → TunnelCode | ~2% |
+| `src/cli/cmd/serve.ts` | describe → tunnelcode | ~1% |
+| `src/cli/cmd/run.ts` | describe + option describe → tunnelcode | ~2% |
+| `src/cli/cmd/web.ts` | describe → tunnelcode | ~1% |
+| `src/cli/cmd/pr.ts` | describe → tunnelcode, spawn fix: `process.execPath` вместо hardcoded `"opencode"` | ~3% |
+| `src/cli/cmd/tui/thread.ts` | describe → tunnelcode | ~1% |
+| `src/cli/cmd/tui/attach.ts` | describe → tunnelcode | ~1% |
+| `src/cli/error.ts` | `tunnelcode models`, MCP текст → tunnelcode (НО `opencode.json` оставлен — реальное имя файла) | ~2% |
 
 ## Sync с upstream (rebase)
 
@@ -85,10 +97,43 @@ bun run build -- --single
 ## Чего НЕ делать
 
 - **Не трогать `config.ts`** — используй `OPENCODE_CONFIG_CONTENT` через launcher
+- **Не трогать `global/index.ts`** — XDG-пути остаются `opencode`, общие данные (сессии, auth, LSP) — это фича, не баг
+- **Не трогать `network.ts` / `mdns.ts`** — mDNS выключен по умолчанию, косметика не стоит конфликтов
+- **Не менять `opencode.json` на `tunnelcode.json`** — конфиг-файл реально называется `opencode.json` (захардкожен в десятках мест)
+- **Не менять pkg manager команды в `uninstall.ts`** — мёртвый код для curl-пользователей TunnelCode
 - **Не трогать `dialog-provider.tsx`** — `enabled_providers` фильтрует UI автоматически
 - **Не добавлять провайдеры в `BUNDLED_PROVIDERS`** — `@ai-sdk/openai-compatible` уже там
 - **Не править файлы вне списка выше** без крайней необходимости
 - **Не использовать merge** — только rebase, иначе история засоряется
+
+## Дистрибуция
+
+TunnelCode распространяется через `gptunnel.ru` как бинарник (curl install). Не публикуется в npm/brew/choco.
+
+### Сборка и релиз
+
+```bash
+cd packages/opencode
+bash src/gptunnel/release.sh          # сборка + переименование архивов
+bash src/gptunnel/upload.sh user@srv  # загрузка на сервер
+```
+
+### Установка пользователем
+
+```bash
+curl -fsSL https://gptunnel.ru/install.sh | bash
+```
+
+### Структура на сервере
+
+```
+/var/www/gptunnel.ru/releases/
+├── latest.txt                    # "1.0.0"
+└── v1.0.0/
+    ├── tunnelcode-darwin-arm64.zip
+    ├── tunnelcode-linux-x64.tar.gz
+    └── ...
+```
 
 ## Ключевые механизмы upstream
 
