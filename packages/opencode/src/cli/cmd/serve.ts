@@ -9,7 +9,7 @@ import { Installation } from "../../installation"
 export const ServeCommand = cmd({
   command: "serve",
   builder: (yargs) => withNetworkOptions(yargs),
-  describe: "starts a headless opencode server",
+  describe: "starts a headless tunnelcode server",
   handler: async (args) => {
     if (!Flag.OPENCODE_SERVER_PASSWORD) {
       console.log("Warning: OPENCODE_SERVER_PASSWORD is not set; server is unsecured.")
