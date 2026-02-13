@@ -1,2 +1,4 @@
 sst-env.d.ts
 packages/desktop/src/bindings.ts
+webcode/index.html
+packages/opencode/src/gptunnel/index.html

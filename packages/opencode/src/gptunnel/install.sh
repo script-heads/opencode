@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# install.sh — Установка TunnelCode для пользователей
-# Использование: curl -fsSL https://gptunnel.ru/install.sh | bash
 set -euo pipefail
 
 BOLD='\033[1m'
@@ -9,7 +7,7 @@ YELLOW='\033[0;33m'
 RED='\033[0;31m'
 RESET='\033[0m'
 
-BASE_URL="https://gptunnel.ru/releases"
+BASE_URL="https://code.gptunnel.ru/releases"
 BIN_NAME="tunnelcode"
 INSTALL_DIR="$HOME/.tunnelcode/bin"
 
