@@ -1,0 +1,918 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code agent by GPTunneL</title>
+    
+    <!-- Primary Meta Tags -->
+    <meta name="title" content="Code agent by GPTunneL">
+    <meta name="description" content="Get access to ClaudeCode, Codex, Opencode, Gemini and other top AI models through a single API. Pay per token, no subscriptions.">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://code.gptunnel.ru/">
+    <meta property="og:title" content="Code agent by GPTunneL">
+    <meta property="og:description" content="Get access to ClaudeCode, Codex, Opencode, Gemini and other top AI models through a single API. Pay per token, no subscriptions.">
+    <meta property="og:image" content="https://code.gptunnel.ru/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://code.gptunnel.ru/">
+    <meta property="twitter:title" content="Code agent by GPTunneL">
+    <meta property="twitter:description" content="Get access to ClaudeCode, Codex, Opencode, Gemini and other top AI models through a single API. Pay per token, no subscriptions.">
+    <meta property="twitter:image" content="https://code.gptunnel.ru/assets/og-image.png">
+    
+    <!-- Favicon & App Icons -->
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+    <link rel="mask-icon" href="/assets/safari-pinned-tab.svg" color="#ffb300">
+    <link rel="manifest" href="/assets/site.webmanifest">
+    <meta name="msapplication-TileColor" content="#392913">
+    <meta name="msapplication-config" content="/assets/browserconfig.xml">
+    <meta name="theme-color" content="#392913">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=VT323&amp;display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bios-blue: #392913; 
+            --pure-blue: #a97531;
+            --term-accent: #ffb300;
+            --term-white: #FFFFFF;
+            --scan-line: rgba(31, 33, 38, 0.5);
+            --phosphor-glow: 0 0 10px var(--term-accent), 0 0 20px var(--term-accent);
+            --border-thick: 4px;
+            --border-thin: 2px;
+            --header-height: 32px;
+            --padding-std: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+            cursor: text; 
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: var(--bios-blue);
+            color: var(--term-white);
+            font-family: 'VT323', monospace;
+            font-size: 20px;
+            overflow: hidden; 
+            text-transform: uppercase;
+            -webkit-font-smoothing: none;
+            filter: blur(0.5px);
+        }
+
+        .crt-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 200%;
+            pointer-events: none;
+            background: 
+                linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 6px 100%;
+            z-index: 9999;
+            animation: scanlines 600s linear infinite;
+        }
+
+        @keyframes scanlines {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(-50%); }
+        }
+
+        #desktop {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .window {
+            position: absolute;
+            background-color: var(--bios-blue);
+            border: var(--border-thick) solid var(--term-white);
+            box-shadow: 10px 10px 0px rgba(0,0,0,0.5);
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        .window.active {
+            z-index: 1000;
+            border-color: var(--term-accent);
+            box-shadow: 12px 12px 0px rgba(0,0,0,0.6);
+        }
+
+        .window.active .title-bar {
+            background-color: var(--term-accent);
+            color: #000;
+        }
+
+        .title-bar {
+            height: var(--header-height);
+            background-color: var(--term-white);
+            color: var(--bios-blue);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 8px;
+            font-weight: bold;
+            cursor: grab;
+            letter-spacing: 2px;
+        }
+
+        .title-bar:active {
+            cursor: grabbing;
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 4px;
+        }
+
+        .btn-close {
+            width: 16px;
+            height: 16px;
+            background: #000;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'VT323', monospace;
+            font-size: 14px;
+            color: var(--term-white);
+            line-height: 1;
+        }
+
+        .btn-close::after {
+            content: 'X';
+        }
+
+        .content-area {
+            padding: var(--padding-std);
+            overflow-y: auto;
+            max-height: 500px;
+            position: relative;
+        }
+
+        .content-area::-webkit-scrollbar {
+            width: 12px;
+            background: var(--bios-blue);
+            border-left: 10px solid rgba(255,255,255,0.2);
+        }
+        .content-area::-webkit-scrollbar-thumb {
+            background: var(--term-white);
+            border: 2px solid var(--bios-blue);
+        }
+
+        h1, h2, h3 {
+            margin: 0 0 16px 0;
+            font-weight: normal;
+        }
+        
+        h2 {
+            border-bottom: 2px dashed var(--term-accent);
+            padding-bottom: 4px;
+            color: var(--term-accent);
+        }
+
+        p {
+            margin-bottom: 16px;
+            line-height: 1.4;
+            text-transform: none; 
+        }
+
+        .blink {
+            animation: blink 1s step-end infinite;
+            color: var(--term-accent);
+
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        .ascii-art {
+            white-space: pre;
+            font-size: 12px;
+            line-height: 12px;
+            color: var(--term-accent);
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+
+        .grid-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+        }
+
+        .desktop-icons {
+            position: absolute;
+            left: 20px;
+            top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .icon {
+            width: 80px;
+            text-align: center;
+            cursor: pointer;
+        }
+        
+        .icon-box {
+            width: 48px;
+            height: 48px;
+            border: 2px solid var(--term-white);
+            margin: 0 auto 8px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.2);
+            font-size: 16px;
+        }
+        
+        .icon:hover .icon-box {
+            background: var(--term-accent);
+            color: var(--bios-blue);
+            border-color: var(--term-accent);
+        }
+
+        #boot-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 10000;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            color: var(--term-accent);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .prompt-line {
+            color: var(--term-white);
+            margin-bottom: 4px;
+        }
+
+        .keyword { color: var(--term-accent); }
+
+        .install-box {
+            background: #000;
+            border: 2px solid var(--term-accent);
+            padding: 12px;
+            margin: 16px 0 16px 0;
+            position: relative;
+            font-family: 'VT323', monospace;
+        }
+
+        .install-cmd {
+        
+            color: var(--term-accent);
+            user-select: all;
+            text-transform: none;
+            display: block;
+            font-size: 14px;
+            padding-bottom: 20px;
+
+        }
+
+        .copy-btn {
+            background: var(--term-accent);
+            color: #000;
+            border: none;
+            padding: 6px 12px;
+            font-family: 'VT323', monospace;
+            font-size: 22px;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        .copy-btn:hover {
+            background: var(--term-white);
+        }
+
+        .copy-btn:active {
+            transform: scale(0.98);
+        }
+
+        .step {
+            margin-bottom: 12px;
+            padding-left: 8px;
+            border-left: 2px solid var(--term-accent);
+        }
+
+        .step-num {
+            color: var(--term-accent);
+            font-weight: bold;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+            20%, 40%, 60%, 80% { transform: translateX(10px); }
+        }
+
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+        }
+
+        .glitch-effect {
+            animation: glitch 0.3s infinite;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="crt-overlay"></div>
+
+    <div id="boot-screen">
+        <div id="boot-text"></div>
+    </div>
+
+    <div id="desktop">
+        <div class="grid-bg"></div>
+
+        <div class="desktop-icons">
+            <div class="icon" onclick="openWindow('win-install')">
+                <div class="icon-box">HOW</div>
+                <span>INSTALL</span>
+            </div>
+            <div class="icon" onclick="openWindow('win-about')">
+                <div class="icon-box">SYS</div>
+                <span>ABOUT</span>
+            </div>
+            <div class="icon" onclick="openWindow('win-gptunnel')">
+                <div class="icon-box">GPT</div>
+                <span>TUNNEL</span>
+            </div>
+            <div class="icon" onclick="openWindow('win-snake')">
+                <div class="icon-box">&#9632;</div>
+                <span>SNAKE</span>
+            </div>
+            <div class="icon" onclick="openWindow('win-docs')">
+                <div class="icon-box">DOC</div>
+                <span>DOCS</span>
+            </div>
+            <div class="icon" onclick="openWindow('win-github')">
+                <div class="icon-box">GIT</div>
+                <span>SOURCE</span>
+            </div>
+        </div>
+
+        <!-- Error Modal -->
+        <div id="error-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9998; display: none; justify-content: center; align-items: center;">
+            <div class="window active" style="position: relative; width: 380px; animation: shake 0.5s;">
+                <div class="title-bar" style="background: #ff0000; color: #fff;">
+                    <span>⚠ ERROR</span>
+                    <div class="window-controls">
+                        <button class="btn-close" onclick="closeError()"></button>
+                    </div>
+                </div>
+                <div class="content-area" style="text-align: center; padding: 24px;">
+                    <p id="error-message" style="color: #ff0000; font-size: 24px; margin-bottom: 20px; line-height: 1.3;"></p>
+                    <p style="color: var(--term-white); margin-bottom: 8px;">Attempts remaining: <span id="attempts-left" style="color: #ff0000;">3</span></p>
+                    <button class="copy-btn" style="margin-top: 16px; background: #ff0000;" onclick="closeError()">[ OK ]</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Install Window -->
+        <div class="window active" id="win-install" style="top: 50px; left: 110px; width: 520px;">
+            <div class="title-bar">
+                <span>TUNNELCODE://INSTALL</span>
+                <div class="window-controls">
+                    <button class="btn-close" onclick="tryCloseInstall()"></button>
+                </div>
+            </div>
+            <div class="content-area">
+                <div class="ascii-art">
+ _____ _   _ _   _ _   _ _____ _     ____ ___  ____  _____       __      __
+|_   _| | | | \ | | \ | | ____| |   / ___/ _ \|  _ \| ____|    /    \   |  |
+  | | | | | |  \| |  \| |  _| | |  | |  | | | | | | |  _|     / Vibe \  |  | 
+  | | | |_| | |\  | |\  | |___| |__| |__| |_| | |_| | |___   / Coding \ |  | 
+  |_|  \___/|_| \_|_| \_|_____|_____\____\___/|____/|_____|  \________/ |__|
+                </div>
+                <p>&gt; AI-powered coding assistant in your terminal<br>&gt; STATUS: <span class="blink">READY</span></p>
+                
+                <h2>QUICK INSTALL</h2>
+                
+                <div class="step">
+                    <span class="step-num">[1]</span> Open your terminal
+                </div>
+                <div class="step">
+                    <span class="step-num">[2]</span> Run the following command:
+                </div>
+                
+                <div class="install-box">
+                    <code class="install-cmd" id="install-cmd">curl -fsSL https://code.gptunnel.ru/install.sh | sh</code>
+                    <button class="copy-btn" onclick="copyCommand()">[ COPY COMMAND ]</button>
+                </div>
+                
+                <div class="step">
+                    <span class="step-num">[3]</span> Follow the installation prompts
+                </div>
+                <div class="step">
+                    <span class="step-num">[4]</span> Launch with: <span class="keyword">tunnelcode</span>
+                </div>
+                
+                <p style="margin-top: 20px; color: var(--term-accent);">&gt; Installation requires curl and a Unix-like system (macOS, Linux, Windows WSL)</p>
+            </div>
+        </div>
+
+        <!-- GPTunnel Window -->
+        <div class="window" id="win-gptunnel" style="top: 120px; left: 200px; width: 440px; display: none;">
+            <div class="title-bar">
+                <span>GPTUNNEL://PORTAL</span>
+                <div class="window-controls">
+                    <button class="btn-close" onclick="closeWindow('win-gptunnel')"></button>
+                </div>
+            </div>
+            <div class="content-area">
+                <h2>OPEN GPTUNNEL?</h2>
+                <p style="color: var(--term-accent); margin-bottom: 12px;">&gt; You are about to enter the GPTunnel platform</p>
+                
+                <p><span class="keyword">AVAILABLE FEATURES:</span></p>
+                <p style="margin-left: 8px;">
+                    &gt; Access to OpenAI, Claude, Gemini<br>
+                    &gt; Image generation (NanaBanana, Midjourney)<br>
+                    &gt; Code assistant & debugging<br>
+                    &gt; Document analysis<br>
+                    &gt; API access for developers<br>
+                    &gt; Telegram bot integration<br>
+                    &gt; No VPN required
+                </p>
+                
+                <p style="margin-top: 16px;"><span class="keyword">PRICING:</span> Pay-as-you-go, no subscription</p>
+                
+                <div style="margin-top: 20px; display: flex; gap: 12px; justify-content: center;">
+                    <button class="copy-btn" onclick="window.open('https://gptunnel.ru?utm_source=tunnelcode', '_blank'); closeWindow('win-gptunnel');">[ PROCEED ]</button>
+                    <button class="copy-btn" style="background: var(--term-white); color: #000;" onclick="closeWindow('win-gptunnel')">[ CANCEL ]</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- GitHub Window -->
+        <div class="window" id="win-github" style="top: 160px; left: 280px; width: 440px; display: none;">
+            <div class="title-bar">
+                <span>GITHUB://SOURCE</span>
+                <div class="window-controls">
+                    <button class="btn-close" onclick="closeWindow('win-github')"></button>
+                </div>
+            </div>
+            <div class="content-area">
+                <h2>OPEN SOURCE CODE?</h2>
+                <p style="color: var(--term-accent); margin-bottom: 12px;">&gt; You are about to access the GitHub repository</p>
+                
+                <p><span class="keyword">REPOSITORY CONTAINS:</span></p>
+                <p style="margin-left: 8px;">
+                    &gt; Full source code<br>
+                    &gt; Issue tracker<br>
+                    &gt; Pull requests<br>
+                    &gt; Contributing guidelines<br>
+                    &gt; Release history<br>
+                    &gt; Build instructions
+                </p>
+                
+                <p style="margin-top: 16px;"><span class="keyword">LICENSE:</span> MIT (Open Source)</p>
+                
+                <div style="margin-top: 20px; display: flex; gap: 12px; justify-content: center;">
+                    <button class="copy-btn" onclick="window.open('https://github.com/script-heads/opencode', '_blank'); closeWindow('win-github');">[ PROCEED ]</button>
+                    <button class="copy-btn" style="background: var(--term-white); color: #000;" onclick="closeWindow('win-github')">[ CANCEL ]</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Docs Window -->
+        <div class="window" id="win-docs" style="top: 140px; left: 250px; width: 440px; display: none;">
+            <div class="title-bar">
+                <span>OPENCODE://DOCS</span>
+                <div class="window-controls">
+                    <button class="btn-close" onclick="closeWindow('win-docs')"></button>
+                </div>
+            </div>
+            <div class="content-area">
+                <h2>OPEN DOCUMENTATION?</h2>
+                <p style="color: var(--term-accent); margin-bottom: 12px;">&gt; You are about to access OpenCode documentation</p>
+                
+                <p><span class="keyword">DOCUMENTATION INCLUDES:</span></p>
+                <p style="margin-left: 8px;">
+                    &gt; Installation guides<br>
+                    &gt; Configuration options<br>
+                    &gt; Provider setup<br>
+                    &gt; TUI / CLI / Web usage<br>
+                    &gt; Custom tools & agents<br>
+                    &gt; MCP servers integration<br>
+                    &gt; SDK & API reference
+                </p>
+                
+                <p style="margin-top: 16px;"><span class="keyword">STATUS:</span> Always up-to-date</p>
+                
+                <div style="margin-top: 20px; display: flex; gap: 12px; justify-content: center;">
+                    <button class="copy-btn" onclick="window.open('https://opencode.ai/docs', '_blank'); closeWindow('win-docs');">[ PROCEED ]</button>
+                    <button class="copy-btn" style="background: var(--term-white); color: #000;" onclick="closeWindow('win-docs')">[ CANCEL ]</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Snake Game Window -->
+        <div class="window" id="win-snake" style="top: 80px; left: 650px; width: 360px; display: none;">
+            <div class="title-bar">
+                <span>SNAKE.EXE</span>
+                <div class="window-controls">
+                    <button class="btn-close" onclick="closeWindow('win-snake'); stopSnake();"></button>
+                </div>
+            </div>
+            <div class="content-area" style="padding: 12px; text-align: center;">
+                <div style="margin-bottom: 8px;">
+                    <span class="keyword">SCORE:</span> <span id="snake-score">0</span>
+                    <span style="margin-left: 16px;" class="keyword">HIGH:</span> <span id="snake-high">0</span>
+                </div>
+                <canvas id="snake-canvas" width="320" height="320" style="border: 2px solid var(--term-accent); background: #000; display: block; margin: 0 auto;"></canvas>
+                <div id="snake-message" style="margin-top: 8px; color: var(--term-accent); height: 24px;">&gt; PRESS [SPACE] TO START</div>
+                <div style="margin-top: 8px; font-size: 14px; color: var(--term-white);">
+                    [W/A/S/D] OR [ARROWS] TO MOVE
+                </div>
+            </div>
+        </div>
+
+        <!-- About Window -->
+        <div class="window" id="win-about" style="top: 5%; left: 10%; width: 400px; display: none;">
+            <div class="title-bar">
+                <span>SYS_INFO</span>
+                <div class="window-controls">
+                    <button class="btn-close" onclick="closeWindow('win-about')"></button>
+                </div>
+            </div>
+            <div class="content-area">
+                <h2>ABOUT TUNNELCODE</h2>
+                <p>
+                    <span class="keyword">TYPE:</span> AI Coding Assistant<br>
+                    <span class="keyword">INTERFACE:</span> Terminal / CLI<br>
+                    <span class="keyword">ENGINE:</span> OpenCode
+                </p>
+                <p>TunnelCode brings the power of AI directly into your terminal. Write, debug, and refactor code with natural language commands.</p>
+                <p>
+                    <span class="keyword">FEATURES:</span><br>
+                    &gt; Code generation<br>
+                    &gt; Bug detection<br>
+                    &gt; Code explanation<br>
+                    &gt; Refactoring assistance<br>
+                    &gt; Multi-agent dev<br>
+                    &gt; Multi-language support
+                </p>
+                <p style="color: var(--term-accent);">&gt; Powered by GPTunneL infrastructure</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const bootText = [
+            "BIOS DATE 02/13/26 09:00:00 VER 2.0",
+            "CPU: NEURAL CORE DETECTED",
+            "INITIALIZING AI ENGINE... OK",
+            "CONNECTING TO GPTUNNEL... OK",
+            "LOADING TUNNELCODE INTERFACE...",
+            "root@tunnel:~$ startx"
+        ];
+        
+        const bootScreen = document.getElementById('boot-screen');
+        const bootContainer = document.getElementById('boot-text');
+        
+        let lineIndex = 0;
+        
+        function typeBoot() {
+            if (lineIndex < bootText.length) {
+                const p = document.createElement('div');
+                p.className = 'prompt-line';
+                p.innerText = bootText[lineIndex];
+                bootContainer.appendChild(p);
+                lineIndex++;
+                setTimeout(typeBoot, Math.random() * 400 + 100);
+            } else {
+                setTimeout(() => {
+                    bootScreen.classList.add('hidden');
+                }, 700);
+            }
+        }
+        
+        window.onload = typeBoot;
+
+        let windows = document.querySelectorAll('.window');
+        let activeWindow = null;
+        let initialX, initialY, currentX, currentY;
+        let zIndexCounter = 1000;
+
+        windows.forEach(win => {
+            const header = win.querySelector('.title-bar');
+            
+            win.addEventListener('mousedown', () => {
+                zIndexCounter++;
+                win.style.zIndex = zIndexCounter;
+                windows.forEach(w => w.classList.remove('active'));
+                win.classList.add('active');
+            });
+
+            header.addEventListener('mousedown', dragStart);
+        });
+
+        document.addEventListener('mouseup', dragEnd);
+        document.addEventListener('mousemove', drag);
+
+        function dragStart(e) {
+            activeWindow = e.target.closest('.window');
+            
+            if (activeWindow) {
+                initialX = e.clientX - activeWindow.offsetLeft;
+                initialY = e.clientY - activeWindow.offsetTop;
+                activeWindow.classList.add('dragging');
+            }
+        }
+
+        function dragEnd(e) {
+            initialX = currentX;
+            initialY = currentY;
+            if (activeWindow) {
+                activeWindow.classList.remove('dragging');
+                activeWindow = null;
+            }
+        }
+
+        function drag(e) {
+            if (activeWindow) {
+                e.preventDefault();
+                currentX = e.clientX - initialX;
+                currentY = e.clientY - initialY;
+                activeWindow.style.left = currentX + "px";
+                activeWindow.style.top = currentY + "px";
+            }
+        }
+
+        function closeWindow(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        function openWindow(id) {
+            const win = document.getElementById(id);
+            win.style.display = 'flex';
+            
+            zIndexCounter++;
+            win.style.zIndex = zIndexCounter;
+            windows.forEach(w => w.classList.remove('active'));
+            win.classList.add('active');
+            
+     
+        }
+
+        function copyCommand() {
+            const cmd = document.getElementById('install-cmd').innerText;
+            navigator.clipboard.writeText(cmd).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                const original = btn.innerText;
+                btn.innerText = '[ COPIED! ]';
+                btn.style.background = '#00FF00';
+                setTimeout(() => {
+                    btn.innerText = original;
+                    btn.style.background = '';
+                }, 1500);
+            });
+        }
+
+        // Install window close prevention
+        let closeAttempts = 0;
+        const errorMessages = [
+            "NICE TRY! Install it first.",
+            "SERIOUSLY? It's free!",
+            "LAST WARNING!",
+        ];
+        
+        function tryCloseInstall() {
+            if (closeAttempts >= 3) {
+                closeWindow('win-install');
+                return;
+            }
+            
+            const modal = document.getElementById('error-modal');
+            const msgEl = document.getElementById('error-message');
+            const attemptsEl = document.getElementById('attempts-left');
+            
+            msgEl.textContent = errorMessages[closeAttempts];
+            attemptsEl.textContent = 2 - closeAttempts;
+            
+            modal.style.display = 'flex';
+            
+            closeAttempts++;
+            
+            if (closeAttempts >= 3) {
+                attemptsEl.textContent = '0';
+                document.querySelector('#error-modal .copy-btn').textContent = '[ FINE ]';
+            }
+        }
+        
+        function closeError() {
+            document.getElementById('error-modal').style.display = 'none';
+            
+            if (closeAttempts >= 3) {
+                closeWindow('win-install');
+            }
+        }
+
+        // Snake Game
+        const snakeCanvas = document.getElementById('snake-canvas');
+        const snakeCtx = snakeCanvas.getContext('2d');
+        const gridSize = 16;
+        const tileCount = 20;
+        
+        let snake = [{x: 10, y: 10}];
+        let food = {x: 15, y: 15};
+        let dx = 0;
+        let dy = 0;
+        let score = 0;
+        let highScore = localStorage.getItem('snakeHigh') || 0;
+        let gameLoop = null;
+        let gameRunning = false;
+        
+        document.getElementById('snake-high').textContent = highScore;
+        
+        function drawSnake() {
+            snakeCtx.fillStyle = '#000';
+            snakeCtx.fillRect(0, 0, snakeCanvas.width, snakeCanvas.height);
+            
+            // Draw grid
+            snakeCtx.strokeStyle = 'rgba(169, 117, 49, 0.1)';
+            for (let i = 0; i <= tileCount; i++) {
+                snakeCtx.beginPath();
+                snakeCtx.moveTo(i * gridSize, 0);
+                snakeCtx.lineTo(i * gridSize, snakeCanvas.height);
+                snakeCtx.stroke();
+                snakeCtx.beginPath();
+                snakeCtx.moveTo(0, i * gridSize);
+                snakeCtx.lineTo(snakeCanvas.width, i * gridSize);
+                snakeCtx.stroke();
+            }
+            
+            // Draw food
+            snakeCtx.fillStyle = '#ffb300';
+            snakeCtx.fillRect(food.x * gridSize + 2, food.y * gridSize + 2, gridSize - 4, gridSize - 4);
+            
+            // Draw snake
+            snake.forEach((segment, index) => {
+                snakeCtx.fillStyle = index === 0 ? '#fff' : '#a97531';
+                snakeCtx.fillRect(segment.x * gridSize + 1, segment.y * gridSize + 1, gridSize - 2, gridSize - 2);
+            });
+        }
+        
+        function moveSnake() {
+            let head = {x: snake[0].x + dx, y: snake[0].y + dy};
+            
+            // Wrap around walls
+            if (head.x < 0) head.x = tileCount - 1;
+            if (head.x >= tileCount) head.x = 0;
+            if (head.y < 0) head.y = tileCount - 1;
+            if (head.y >= tileCount) head.y = 0;
+            
+            // Self collision
+            for (let segment of snake) {
+                if (head.x === segment.x && head.y === segment.y) {
+                    gameOver();
+                    return;
+                }
+            }
+            
+            snake.unshift(head);
+            
+            // Eat food
+            if (head.x === food.x && head.y === food.y) {
+                score += 10;
+                document.getElementById('snake-score').textContent = score;
+                spawnFood();
+            } else {
+                snake.pop();
+            }
+            
+            drawSnake();
+        }
+        
+        function spawnFood() {
+            do {
+                food = {
+                    x: Math.floor(Math.random() * tileCount),
+                    y: Math.floor(Math.random() * tileCount)
+                };
+            } while (snake.some(s => s.x === food.x && s.y === food.y));
+        }
+        
+        function gameOver() {
+            gameRunning = false;
+            clearInterval(gameLoop);
+            gameLoop = null;
+            
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('snakeHigh', highScore);
+                document.getElementById('snake-high').textContent = highScore;
+            }
+            
+            document.getElementById('snake-message').innerHTML = '&gt; GAME OVER! PRESS SPACE';
+        }
+        
+        function startSnake() {
+            snake = [{x: 10, y: 10}];
+            dx = 1;
+            dy = 0;
+            score = 0;
+            document.getElementById('snake-score').textContent = 0;
+            spawnFood();
+            drawSnake();
+            document.getElementById('snake-message').innerHTML = '&gt; GO!';
+            gameRunning = true;
+            if (gameLoop) clearInterval(gameLoop);
+            gameLoop = setInterval(moveSnake, 120);
+        }
+        
+        function stopSnake() {
+            gameRunning = false;
+            if (gameLoop) {
+                clearInterval(gameLoop);
+                gameLoop = null;
+            }
+        }
+        
+        document.addEventListener('keydown', (e) => {
+            const win = document.getElementById('win-snake');
+            if (win.style.display === 'none') return;
+            
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (!gameRunning) startSnake();
+                return;
+            }
+            
+            if (!gameRunning) return;
+            
+            switch(e.key.toLowerCase()) {
+                case 'w':
+                case 'arrowup':
+                    if (dy !== 1) { dx = 0; dy = -1; }
+                    break;
+                case 's':
+                case 'arrowdown':
+                    if (dy !== -1) { dx = 0; dy = 1; }
+                    break;
+                case 'a':
+                case 'arrowleft':
+                    if (dx !== 1) { dx = -1; dy = 0; }
+                    break;
+                case 'd':
+                case 'arrowright':
+                    if (dx !== -1) { dx = 1; dy = 0; }
+                    break;
+            }
+        });
+        
+        // Initial draw
+        drawSnake();
+
+    </script>
+
+</body>
+</html>
