@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+if [ -z "${BASH_VERSION:-}" ]; then
+  echo "Error: this installer requires bash. Run: curl -fsSL https://gptunnel.ru/install.sh | bash" >&2
+  exit 1
+fi
 set -euo pipefail
 
 BOLD='\033[1m'
@@ -10,6 +14,10 @@ RESET='\033[0m'
 BASE_URL="https://code.gptunnel.ru/releases"
 BIN_NAME="tunnelcode"
 INSTALL_DIR="$HOME/.tunnelcode/bin"
+
+TMP_DIR=""
+cleanup() { [ -n "$TMP_DIR" ] && rm -rf "$TMP_DIR"; }
+trap cleanup EXIT
 
 info()  { echo -e "${GREEN}[info]${RESET} $*"; }
 warn()  { echo -e "${YELLOW}[warn]${RESET} $*"; }
@@ -52,20 +60,18 @@ download_and_install() {
   info "Downloading TunnelCode v${VERSION} for ${OS}/${ARCH}..."
   info "URL: $url"
 
-  local tmp
-  tmp=$(mktemp -d)
-  trap 'rm -rf "$tmp"' EXIT
+  TMP_DIR=$(mktemp -d)
 
-  curl -fsSL "$url" -o "$tmp/$archive" \
+  curl -fsSL "$url" -o "$TMP_DIR/$archive" \
     || error "Download failed. Check that version $VERSION exists for your platform."
 
   mkdir -p "$INSTALL_DIR"
 
   info "Extracting..."
   if [ "$ext" = "tar.gz" ]; then
-    tar -xzf "$tmp/$archive" -C "$INSTALL_DIR"
+    tar -xzf "$TMP_DIR/$archive" -C "$INSTALL_DIR"
   else
-    unzip -oq "$tmp/$archive" -d "$INSTALL_DIR"
+    unzip -oq "$TMP_DIR/$archive" -d "$INSTALL_DIR"
   fi
 
   chmod +x "$INSTALL_DIR/$BIN_NAME"
@@ -102,7 +108,6 @@ setup_path() {
     echo "export PATH=\"$INSTALL_DIR:\$PATH\"" >> "$rc_file"
   fi
 
-  warn "Restart your shell or run:  source $rc_file"
 }
 
 main() {
@@ -119,6 +124,12 @@ main() {
   echo ""
   echo -e "  Run: ${BOLD}tunnelcode${RESET}"
   echo ""
+  if ! echo "$PATH" | tr ':' '\n' | grep -Fqx "$INSTALL_DIR"; then
+    echo -e "  ${YELLOW}PATH not yet updated in this session.${RESET}"
+    echo -e "  Run now:  ${BOLD}export PATH=\"$INSTALL_DIR:\$PATH\"${RESET}"
+    echo -e "  Or open a new terminal window."
+    echo ""
+  fi
 }
 
 main "$@"

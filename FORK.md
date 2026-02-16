@@ -13,6 +13,8 @@
 | `packages/opencode/src/gptunnel/defaults.ts` | Дефолтный конфиг: `OPENCODE_CONFIG_CONTENT` с `enabled_providers` |
 | `packages/opencode/src/gptunnel/provider-loader.ts` | Custom loader: загрузка моделей с GPTunnel API, кеширование |
 | `packages/opencode/src/gptunnel/auth.ts` | Auth-плагин: OAuth code flow для ввода API-ключа со ссылкой на profile |
+| `packages/opencode/src/gptunnel/urls.ts` | Константы URL-ов для дистрибуции и обновлений |
+| `packages/opencode/src/gptunnel/update-notifier.ts` | Фоновая проверка обновлений при запуске (кеш 24ч, stderr) |
 | `packages/opencode/src/gptunnel/install.sh` | Curl-установщик для пользователей (`curl -fsSL gptunnel.ru/install.sh \| bash`) |
 | `packages/opencode/src/gptunnel/release.sh` | Сборка + переименование архивов opencode-* → tunnelcode-* |
 | `packages/opencode/src/gptunnel/upload.sh` | Загрузка архивов на сервер gptunnel.ru |
@@ -41,6 +43,7 @@
 | `src/cli/cmd/pr.ts` | describe → tunnelcode, spawn fix: `process.execPath` вместо hardcoded `"opencode"` | ~3% |
 | `src/cli/cmd/tui/thread.ts` | describe → tunnelcode | ~1% |
 | `src/cli/cmd/tui/attach.ts` | describe → tunnelcode | ~1% |
+| `src/installation/index.ts` | +import gptunnel/urls, +`.tunnelcode/bin` в method(), curl→TUNNELCODE URL в upgrade(), +curl branch в latest() | ~10-15% |
 | `src/cli/error.ts` | `tunnelcode models`, MCP текст → tunnelcode (НО `opencode.json` оставлен — реальное имя файла) | ~2% |
 
 ## Sync с upstream (rebase)
@@ -66,6 +69,9 @@ bun run build -- --single
 
 **plugin/index.ts** — upstream добавил новый internal plugin:
 → Принять upstream, добавить `GptunnelAuthPlugin` в конец массива `INTERNAL_PLUGINS`.
+
+**installation/index.ts** — upstream изменил method()/upgrade()/latest():
+→ Принять upstream, убедиться что: (1) `import { TUNNELCODE }` на месте, (2) `.tunnelcode/bin` check в method(), (3) TUNNELCODE.INSTALL_URL в curl case upgrade(), (4) curl branch перед fallback в latest().
 
 **package.json** — upstream обновил версии:
 → Принять upstream, убедиться что `"tunnelcode": "./bin/tunnelcode"` в секции `bin`.

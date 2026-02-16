@@ -6,6 +6,7 @@ import { NamedError } from "@opencode-ai/util/error"
 import { Log } from "../util/log"
 import { iife } from "@/util/iife"
 import { Flag } from "../flag/flag"
+import { TUNNELCODE } from "../gptunnel/urls"
 
 declare global {
   const OPENCODE_VERSION: string
@@ -58,6 +59,7 @@ export namespace Installation {
   }
 
   export async function method() {
+    if (process.execPath.includes(path.join(TUNNELCODE.INSTALL_DIR, "bin"))) return "curl"
     if (process.execPath.includes(path.join(".opencode", "bin"))) return "curl"
     if (process.execPath.includes(path.join(".local", "bin"))) return "curl"
     const exec = process.execPath.toLowerCase()
@@ -132,9 +134,9 @@ export namespace Installation {
     let cmd
     switch (method) {
       case "curl":
-        cmd = $`curl -fsSL https://opencode.ai/install | bash`.env({
+        cmd = $`curl -fsSL ${TUNNELCODE.INSTALL_URL} | bash`.env({
           ...process.env,
-          VERSION: target,
+          TUNNELCODE_VERSION: target,
         })
         break
       case "npm":
@@ -249,6 +251,15 @@ export namespace Installation {
           return res.json()
         })
         .then((data: any) => data.version)
+    }
+
+    if (detectedMethod === "curl") {
+      return fetch(TUNNELCODE.LATEST_URL)
+        .then((res) => {
+          if (!res.ok) throw new Error(res.statusText)
+          return res.text()
+        })
+        .then((text) => text.trim())
     }
 
     return fetch("https://api.github.com/repos/anomalyco/opencode/releases/latest")
