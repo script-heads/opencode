@@ -7,6 +7,7 @@ import { iife } from "@/util/iife"
 import { Flag } from "../flag/flag"
 import { Process } from "@/util/process"
 import { buffer } from "node:stream/consumers"
+import { TUNNELCODE } from "../gptunnel/urls"
 
 declare global {
   const OPENCODE_VERSION: string
@@ -25,7 +26,7 @@ export namespace Installation {
   }
 
   async function upgradeCurl(target: string) {
-    const body = await fetch("https://opencode.ai/install").then((res) => {
+    const body = await fetch(TUNNELCODE.INSTALL_URL).then((res) => {
       if (!res.ok) throw new Error(res.statusText)
       return res.text()
     })
@@ -35,7 +36,7 @@ export namespace Installation {
       stderr: "pipe",
       env: {
         ...process.env,
-        VERSION: target,
+        TUNNELCODE_VERSION: target,
       },
     })
     if (!proc.stdin || !proc.stdout || !proc.stderr) throw new Error("Process output not available")
@@ -91,6 +92,7 @@ export namespace Installation {
   }
 
   export async function method() {
+    if (process.execPath.includes(path.join(TUNNELCODE.INSTALL_DIR, "bin"))) return "curl"
     if (process.execPath.includes(path.join(".opencode", "bin"))) return "curl"
     if (process.execPath.includes(path.join(".local", "bin"))) return "curl"
     const exec = process.execPath.toLowerCase()
@@ -291,6 +293,15 @@ export namespace Installation {
           return res.json()
         })
         .then((data: any) => data.version)
+    }
+
+    if (detectedMethod === "curl") {
+      return fetch(TUNNELCODE.LATEST_URL)
+        .then((res) => {
+          if (!res.ok) throw new Error(res.statusText)
+          return res.text()
+        })
+        .then((text) => text.trim())
     }
 
     return fetch("https://api.github.com/repos/anomalyco/opencode/releases/latest")

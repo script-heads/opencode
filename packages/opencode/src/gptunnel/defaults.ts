@@ -13,3 +13,6 @@ if (!process.env.OPENCODE_CONFIG_CONTENT) {
     },
   })
 }
+
+// Dynamic import to avoid blocking module load order
+import("./update-notifier").then((m) => m.notifyIfUpdateAvailable()).catch(() => {})
