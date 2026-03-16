@@ -18,10 +18,10 @@ else
   echo "==> Building tunnelcode (all platforms for Docker)..."
 fi
 
-bun run script/build.ts $SINGLE_FLAG -- --skip-install
-
 VERSION=$(node -p "require('./package.json').version")
 echo "==> Version: $VERSION"
+
+OPENCODE_VERSION=$VERSION bun run script/build.ts $SINGLE_FLAG -- --skip-install
 
 DIST=dist
 DOCKER_DIST="$SCRIPT_DIR/docker-dist"

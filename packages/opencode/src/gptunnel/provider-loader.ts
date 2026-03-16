@@ -5,6 +5,7 @@ import { Config } from "../config/config"
 import { Auth } from "../auth"
 import { Env } from "../env"
 import type { Provider } from "../provider/provider"
+import { ModelID, ProviderID } from "../provider/schema"
 
 const GPTUNNEL_API_URL = "https://gptunnel.ru/v1"
 const gptunnelCache = path.join(Global.Path.cache, "gptunnel-models.json")
@@ -91,8 +92,8 @@ function fromGptunnelModel(model: GptunnelModel): Provider.Model {
   const reasoning = inferReasoning(model.id)
   const vision = inferVision(model.id)
   return {
-    id: model.id,
-    providerID: "gptunnel",
+    id: ModelID.make(model.id),
+    providerID: ProviderID.make("gptunnel"),
     api: {
       id: model.id,
       url: GPTUNNEL_API_URL,

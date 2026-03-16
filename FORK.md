@@ -18,6 +18,11 @@
 | `packages/opencode/src/gptunnel/install.sh` | Curl-установщик для пользователей (`curl -fsSL gptunnel.ru/install.sh \| bash`) |
 | `packages/opencode/src/gptunnel/release.sh` | Сборка + переименование архивов opencode-* → tunnelcode-* |
 | `packages/opencode/src/gptunnel/upload.sh` | Загрузка архивов на сервер gptunnel.ru |
+| `packages/opencode/src/gptunnel/index.html` | Лендинг code.gptunnel.ru |
+| `packages/opencode/src/gptunnel/assets/` | Фавиконки и OG-картинки для лендинга |
+| `packages/opencode/src/gptunnel/og-image.jpeg` | OG-изображение |
+| `packages/opencode/src/gptunnel/manifest.yaml` | Манифест для Docker/K8s деплоя |
+| `packages/opencode/src/gptunnel/opencode.Dockerfile` | Dockerfile для сервера дистрибуции |
 | `packages/opencode/bin/tunnelcode` | Shell-скрипт launcher: устанавливает дефолтный конфиг и запускает opencode |
 | `packages/opencode/test/provider/gptunnel.test.ts` | Тесты GPTunnel провайдера |
 | `FORK.md` | Этот файл |
