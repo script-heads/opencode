@@ -1,9 +1,8 @@
 import z from "zod"
 import path from "path"
-import { Global } from "../global"
-import { Config } from "../config/config"
-import { Auth } from "../auth"
-import { Env } from "../env"
+import { Global } from "@opencode-ai/core/global"
+import type { Config } from "../config/config"
+import type { Auth } from "../auth"
 import type { Provider } from "../provider/provider"
 import { ModelID, ProviderID } from "../provider/schema"
 
@@ -169,11 +168,12 @@ async function writeGptunnelCache(models: Record<string, Provider.Model>) {
   await Bun.write(gptunnelCache, JSON.stringify({ updated_at: Date.now(), models }, null, 2)).catch(() => undefined)
 }
 
-export async function gptunnelCustomLoader(input: Provider.Info) {
-  const config = await Config.get()
-  const auth = await Auth.get("gptunnel")
-  const configKey = config.provider?.gptunnel?.options?.apiKey
-  const key = Env.get("GPTUNNEL_API_KEY") ?? (auth?.type === "api" ? auth.key : undefined)
+export async function gptunnelCustomLoader(
+  input: Provider.Info,
+  ctx: { cfg: Config.Info; auth?: Auth.Info; key?: string },
+) {
+  const configKey = ctx.cfg.provider?.gptunnel?.options?.apiKey
+  const key = ctx.key ?? (ctx.auth?.type === "api" ? ctx.auth.key : undefined)
   const apiKey = key ?? (typeof configKey === "string" ? configKey : undefined)
 
   if (!apiKey) {
