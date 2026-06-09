@@ -3,7 +3,6 @@ import path from "path"
 import z from "zod"
 import { NamedError } from "@opencode-ai/util/error"
 import { Log } from "../util/log"
-import { iife } from "@/util/iife"
 import { Flag } from "../flag/flag"
 import { Process } from "@/util/process"
 import { buffer } from "node:stream/consumers"
@@ -155,73 +154,16 @@ export namespace Installation {
     }),
   )
 
-  async function getBrewFormula() {
-    const tapFormula = await text(["brew", "list", "--formula", "anomalyco/tap/opencode"])
-    if (tapFormula.includes("opencode")) return "anomalyco/tap/opencode"
-    const coreFormula = await text(["brew", "list", "--formula", "opencode"])
-    if (coreFormula.includes("opencode")) return "opencode"
-    return "opencode"
-  }
-
   export async function upgrade(method: Method, target: string) {
-    let result: Awaited<ReturnType<typeof upgradeCurl>> | undefined
-    switch (method) {
-      case "curl":
-        result = await upgradeCurl(target)
-        break
-      case "npm":
-        result = await Process.run(["npm", "install", "-g", `opencode-ai@${target}`], { nothrow: true })
-        break
-      case "pnpm":
-        result = await Process.run(["pnpm", "install", "-g", `opencode-ai@${target}`], { nothrow: true })
-        break
-      case "bun":
-        result = await Process.run(["bun", "install", "-g", `opencode-ai@${target}`], { nothrow: true })
-        break
-      case "brew": {
-        const formula = await getBrewFormula()
-        const env = {
-          HOMEBREW_NO_AUTO_UPDATE: "1",
-          ...process.env,
-        }
-        if (formula.includes("/")) {
-          const tap = await Process.run(["brew", "tap", "anomalyco/tap"], { env, nothrow: true })
-          if (tap.code !== 0) {
-            result = tap
-            break
-          }
-          const repo = await Process.text(["brew", "--repo", "anomalyco/tap"], { env, nothrow: true })
-          if (repo.code !== 0) {
-            result = repo
-            break
-          }
-          const dir = repo.text.trim()
-          if (dir) {
-            const pull = await Process.run(["git", "pull", "--ff-only"], { cwd: dir, env, nothrow: true })
-            if (pull.code !== 0) {
-              result = pull
-              break
-            }
-          }
-        }
-        result = await Process.run(["brew", "upgrade", formula], { env, nothrow: true })
-        break
-      }
-
-      case "choco":
-        result = await Process.run(["choco", "upgrade", "opencode", `--version=${target}`, "-y"], { nothrow: true })
-        break
-      case "scoop":
-        result = await Process.run(["scoop", "install", `opencode@${target}`], { nothrow: true })
-        break
-      default:
-        throw new Error(`Unknown method: ${method}`)
-    }
-    if (!result || result.code !== 0) {
-      const stderr =
-        method === "choco" ? "not running from an elevated command shell" : result?.stderr.toString("utf8") || ""
+    if (method !== "curl") {
       throw new UpgradeFailedError({
-        stderr: stderr,
+        stderr: `TunnelCode upgrades use the curl installer. Run: curl -fsSL ${TUNNELCODE.INSTALL_URL} | bash`,
+      })
+    }
+    const result = await upgradeCurl(target)
+    if (result.code !== 0) {
+      throw new UpgradeFailedError({
+        stderr: result.stderr.toString("utf8"),
       })
     }
     log.info("upgraded", {
@@ -237,78 +179,12 @@ export namespace Installation {
   export const CHANNEL = typeof OPENCODE_CHANNEL === "string" ? OPENCODE_CHANNEL : "local"
   export const USER_AGENT = `opencode/${CHANNEL}/${VERSION}/${Flag.OPENCODE_CLIENT}`
 
-  export async function latest(installMethod?: Method) {
-    const detectedMethod = installMethod || (await method())
-
-    if (detectedMethod === "brew") {
-      const formula = await getBrewFormula()
-      if (formula.includes("/")) {
-        const infoJson = await text(["brew", "info", "--json=v2", formula])
-        const info = JSON.parse(infoJson)
-        const version = info.formulae?.[0]?.versions?.stable
-        if (!version) throw new Error(`Could not detect version for tap formula: ${formula}`)
-        return version
-      }
-      return fetch("https://formulae.brew.sh/api/formula/opencode.json")
-        .then((res) => {
-          if (!res.ok) throw new Error(res.statusText)
-          return res.json()
-        })
-        .then((data: any) => data.versions.stable)
-    }
-
-    if (detectedMethod === "npm" || detectedMethod === "bun" || detectedMethod === "pnpm") {
-      const registry = await iife(async () => {
-        const r = (await text(["npm", "config", "get", "registry"])).trim()
-        const reg = r || "https://registry.npmjs.org"
-        return reg.endsWith("/") ? reg.slice(0, -1) : reg
-      })
-      const channel = CHANNEL
-      return fetch(`${registry}/opencode-ai/${channel}`)
-        .then((res) => {
-          if (!res.ok) throw new Error(res.statusText)
-          return res.json()
-        })
-        .then((data: any) => data.version)
-    }
-
-    if (detectedMethod === "choco") {
-      return fetch(
-        "https://community.chocolatey.org/api/v2/Packages?$filter=Id%20eq%20%27opencode%27%20and%20IsLatestVersion&$select=Version",
-        { headers: { Accept: "application/json;odata=verbose" } },
-      )
-        .then((res) => {
-          if (!res.ok) throw new Error(res.statusText)
-          return res.json()
-        })
-        .then((data: any) => data.d.results[0].Version)
-    }
-
-    if (detectedMethod === "scoop") {
-      return fetch("https://raw.githubusercontent.com/ScoopInstaller/Main/master/bucket/opencode.json", {
-        headers: { Accept: "application/json" },
-      })
-        .then((res) => {
-          if (!res.ok) throw new Error(res.statusText)
-          return res.json()
-        })
-        .then((data: any) => data.version)
-    }
-
-    if (detectedMethod === "curl") {
-      return fetch(TUNNELCODE.LATEST_URL)
-        .then((res) => {
-          if (!res.ok) throw new Error(res.statusText)
-          return res.text()
-        })
-        .then((text) => text.trim())
-    }
-
-    return fetch("https://api.github.com/repos/anomalyco/opencode/releases/latest")
+  export async function latest(_method?: Method) {
+    return fetch(TUNNELCODE.LATEST_URL)
       .then((res) => {
         if (!res.ok) throw new Error(res.statusText)
-        return res.json()
+        return res.text()
       })
-      .then((data: any) => data.tag_name.replace(/^v/, ""))
+      .then((text) => text.trim())
   }
 }

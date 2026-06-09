@@ -8,40 +8,27 @@ afterEach(() => {
 })
 
 describe("installation", () => {
-  test("reads release version from GitHub releases", async () => {
-    globalThis.fetch = (async () =>
-      new Response(JSON.stringify({ tag_name: "v1.2.3" }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      })) as unknown as typeof fetch
+  test("reads TunnelCode release version from latest.txt", async () => {
+    globalThis.fetch = (async () => new Response("1.2.3\n", { status: 200 })) as unknown as typeof fetch
 
     expect(await Installation.latest("unknown")).toBe("1.2.3")
   })
 
-  test("reads scoop manifest versions", async () => {
-    globalThis.fetch = (async () =>
-      new Response(JSON.stringify({ version: "2.3.4" }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      })) as unknown as typeof fetch
+  test("uses TunnelCode latest.txt even when a package manager method is detected", async () => {
+    const urls: string[] = []
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
+      urls.push(String(input))
+      return new Response("2.3.4\n", { status: 200 })
+    }) as unknown as typeof fetch
 
     expect(await Installation.latest("scoop")).toBe("2.3.4")
+    expect(urls).toEqual(["https://code.gptunnel.ru/releases/latest.txt"])
   })
 
-  test("reads chocolatey feed versions", async () => {
-    globalThis.fetch = (async () =>
-      new Response(
-        JSON.stringify({
-          d: {
-            results: [{ Version: "3.4.5" }],
-          },
-        }),
-        {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        },
-      )) as unknown as typeof fetch
+  test("blocks package manager upgrades because TunnelCode is distributed by the curl installer", async () => {
+    const err = await Installation.upgrade("npm", "9.9.9").catch((err) => err)
 
-    expect(await Installation.latest("choco")).toBe("3.4.5")
+    expect(err).toBeInstanceOf(Installation.UpgradeFailedError)
+    expect(err.data.stderr).toContain("curl installer")
   })
 })

@@ -20,6 +20,23 @@ export function notifyIfUpdateAvailable() {
   doCheck().catch(() => {})
 }
 
+export type Target = {
+  platform?: NodeJS.Platform
+  arch?: "arm64" | "x64"
+  avx2?: boolean
+  libc?: "glibc" | "musl"
+}
+
+export function archiveForTarget(target: Target = {}) {
+  const platform = target.platform ?? process.platform
+  const os = platform === "win32" ? "windows" : platform
+  const arch = target.arch ?? (process.arch === "arm64" ? "arm64" : "x64")
+  const base = ["tunnelcode", os, arch, arch === "x64" && target.avx2 === false ? "baseline" : undefined, platform === "linux" ? target.libc : undefined]
+    .filter(Boolean)
+    .join("-")
+  return `${base}.${platform === "linux" ? "tar.gz" : "zip"}`
+}
+
 async function doCheck() {
   const cache = await readCache()
 
@@ -52,17 +69,20 @@ async function doCheck() {
 }
 
 async function autoUpgrade(latest: string) {
-  const platform = process.platform === "darwin" ? "darwin" : process.platform === "linux" ? "linux" : null
+  const platform =
+    process.platform === "darwin" || process.platform === "linux" || process.platform === "win32"
+      ? process.platform
+      : null
   if (!platform) {
     printNotice(latest)
     return
   }
 
-  const arch = process.arch === "arm64" ? "arm64" : "x64"
-  const ext = platform === "linux" ? "tar.gz" : "zip"
-  const archive = `tunnelcode-${platform}-${arch}.${ext}`
+  const archive = archiveForTarget(await target())
+  const ext = archive.endsWith(".tar.gz") ? "tar.gz" : "zip"
   const url = `${TUNNELCODE.BASE_URL}/releases/v${latest}/${archive}`
   const installDir = path.join(os.homedir(), TUNNELCODE.INSTALL_DIR, "bin")
+  const bin = platform === "win32" ? "tunnelcode.exe" : "tunnelcode"
 
   try {
     process.stderr.write(`\n  Updating ${CURRENT_VERSION} → ${latest}...`)
@@ -83,13 +103,44 @@ async function autoUpgrade(latest: string) {
     }
 
     await $`rm -f ${tmpFile}`.quiet().nothrow()
-    await $`chmod +x ${path.join(installDir, "tunnelcode")}`.quiet().nothrow()
+    await $`chmod +x ${path.join(installDir, bin)}`.quiet().nothrow()
 
     await writeCache({ timestamp: Date.now(), latest, upgraded: true })
     process.stderr.write(` done. Restart to use the new version.\n\n`)
   } catch {
     printNotice(latest)
   }
+}
+
+async function target(): Promise<Target> {
+  return {
+    platform: process.platform,
+    arch: process.arch === "arm64" ? "arm64" : "x64",
+    avx2: await hasAvx2(),
+    libc: await libc(),
+  }
+}
+
+async function hasAvx2() {
+  if (process.arch !== "x64") return true
+  if (process.platform === "darwin") {
+    const out = await $`sysctl -n machdep.cpu.leaf7_features`.quiet().text().catch(() => "")
+    return /\bAVX2\b/.test(out)
+  }
+  if (process.platform === "linux") {
+    const out = await Bun.file("/proc/cpuinfo").text().catch(() => "")
+    return /\bavx2\b/.test(out)
+  }
+  return true
+}
+
+async function libc() {
+  if (process.platform !== "linux") return undefined
+  const report = (process as unknown as { report?: { getReport?: () => { header?: { glibcVersionRuntime?: string } } } }).report
+  if (report?.getReport?.().header?.glibcVersionRuntime) return "glibc"
+  const out = await $`ldd --version`.quiet().text().catch(() => "")
+  if (out.toLowerCase().includes("musl")) return "musl"
+  return "glibc"
 }
 
 function isNewer(latest: string, current: string): boolean {

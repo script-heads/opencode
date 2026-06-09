@@ -4,15 +4,17 @@
 # 
 # Флаги:
 #   --single  — собрать только для текущей платформы (для локального теста)
-#   (без флага) — собрать для всех платформ (linux/darwin x64/arm64)
+#   (без флага) — собрать для всех платформ (linux/darwin/windows x64/arm64)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR/../.."
 
 SINGLE_FLAG=""
+CHECK_FLAG=""
 if [[ "${1:-}" == "--single" ]]; then
   SINGLE_FLAG="--single"
+  CHECK_FLAG="--allow-partial"
   echo "==> Building tunnelcode (single target for local testing)..."
 else
   echo "==> Building tunnelcode (all platforms for Docker)..."
@@ -21,7 +23,7 @@ fi
 VERSION=$(node -p "require('./package.json').version")
 echo "==> Version: $VERSION"
 
-OPENCODE_VERSION=$VERSION bun run script/build.ts $SINGLE_FLAG -- --skip-install
+OPENCODE_VERSION=$VERSION bun run script/build.ts $SINGLE_FLAG
 
 DIST=dist
 DOCKER_DIST="$SCRIPT_DIR/docker-dist"
@@ -72,6 +74,8 @@ fi
 # latest.txt
 echo "$VERSION" > "$DOCKER_DIST/releases/latest.txt"
 echo "==> Created releases/latest.txt with version $VERSION"
+
+bun run script/gptunnel-release-check.ts --release-dir "$DOCKER_DIST/releases/v${VERSION}" $CHECK_FLAG
 
 # Копируем install.sh, index.html и assets
 cp "$SCRIPT_DIR/install.sh" "$DOCKER_DIST/"
