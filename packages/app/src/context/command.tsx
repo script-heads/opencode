@@ -1,10 +1,11 @@
-import { createEffect, createMemo, onCleanup, onMount, type Accessor } from "solid-js"
-import { createStore } from "solid-js/store"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { dict as en } from "@/i18n/en"
+import { type Accessor, createEffect, createMemo, onCleanup, onMount } from "solid-js"
+import { createStore } from "solid-js/store"
+import { makeEventListener } from "@solid-primitives/event-listener"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
+import { dict as en } from "@/i18n/en"
 import { Persist, persisted } from "@/utils/persist"
 
 const IS_MAC = typeof navigator === "object" && /(Mac|iPod|iPhone|iPad)/.test(navigator.platform)
@@ -80,6 +81,7 @@ export interface CommandOption {
   slash?: string
   suggested?: boolean
   disabled?: boolean
+  hidden?: boolean
   onSelect?: (source?: "palette" | "keybind" | "slash") => void
   onHighlight?: () => (() => void) | void
 }
@@ -92,6 +94,7 @@ export type CommandCatalogItem = {
   category?: string
   keybind?: KeybindConfig
   slash?: string
+  hidden?: boolean
 }
 
 export type CommandRegistration = {
@@ -238,9 +241,10 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
     })
     const warnedDuplicates = new Set<string>()
 
+    type CommandCatalog = Record<string, CommandCatalogItem>
     const [catalog, setCatalog, _, catalogReady] = persisted(
       Persist.global("command.catalog.v1"),
-      createStore<Record<string, CommandCatalogItem>>({}),
+      createStore<CommandCatalog>({}),
     )
 
     const bind = (id: string, def: KeybindConfig | undefined) => {
@@ -259,7 +263,7 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
           if (seen.has(opt.id)) {
             if (import.meta.env.DEV && !warnedDuplicates.has(opt.id)) {
               warnedDuplicates.add(opt.id)
-              console.warn(`[command] duplicate command id \"${opt.id}\" registered; keeping first entry`)
+              console.warn(`[command] duplicate command id "${opt.id}" registered; keeping first entry`)
             }
             continue
           }
@@ -274,16 +278,20 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
     createEffect(() => {
       if (!catalogReady()) return
 
-      for (const opt of registered()) {
-        const id = actionId(opt.id)
-        setCatalog(id, {
-          title: opt.title,
-          description: opt.description,
-          category: opt.category,
-          keybind: opt.keybind,
-          slash: opt.slash,
-        })
-      }
+      setCatalog(
+        registered().reduce((acc, opt) => {
+          const id = actionId(opt.id)
+          if (opt.title)
+            acc[id] = {
+              title: opt.title,
+              description: opt.description,
+              category: opt.category,
+              keybind: opt.keybind,
+              slash: opt.slash,
+            }
+          return acc
+        }, {} as CommandCatalog),
+      )
     })
 
     const catalogOptions = createMemo(() => Object.entries(catalog).map(([id, meta]) => ({ id, ...meta })))
@@ -374,11 +382,7 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
     }
 
     onMount(() => {
-      document.addEventListener("keydown", handleKeyDown)
-    })
-
-    onCleanup(() => {
-      document.removeEventListener("keydown", handleKeyDown)
+      makeEventListener(document, "keydown", handleKeyDown)
     })
 
     function register(cb: () => CommandOption[]): void

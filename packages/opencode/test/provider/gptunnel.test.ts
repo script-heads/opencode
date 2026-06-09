@@ -1,35 +1,50 @@
-import { afterEach, expect, mock, test } from "bun:test"
+import { afterEach, expect, mock } from "bun:test"
 import fs from "fs/promises"
 import path from "path"
-import { Env } from "../../src/env"
-import { Global } from "../../src/global"
-import { Instance } from "../../src/project/instance"
+import { Effect } from "effect"
+import { Global } from "@opencode-ai/core/global"
+import { ProviderV2 } from "@opencode-ai/core/provider"
 import { Provider } from "../../src/provider/provider"
-import { tmpdir } from "../fixture/fixture"
+import { testEffect } from "../lib/effect"
 
-const cachePath = path.join(Global.Path.cache, "gptunnel-models.json")
-const originalFetch = globalThis.fetch
-const config = {
+const cache = path.join(Global.Path.cache, "gptunnel-models.json")
+const original = globalThis.fetch
+const id = ProviderV2.ID.make("gptunnel")
+
+const base = {
   enabled_providers: ["gptunnel"],
   provider: {
     gptunnel: {
       name: "GPTunnel",
       api: "https://gptunnel.ru/v1",
+      npm: "@ai-sdk/openai-compatible",
       env: ["GPTUNNEL_API_KEY"],
     },
   },
 }
 
-function cachedModel(id: string) {
+const keyed = {
+  ...base,
+  provider: {
+    gptunnel: {
+      ...base.provider.gptunnel,
+      options: {
+        apiKey: "test-key",
+      },
+    },
+  },
+}
+
+function cached(model: string) {
   return {
-    id,
+    id: model,
     providerID: "gptunnel",
     api: {
-      id,
+      id: model,
       url: "https://gptunnel.ru/v1",
       npm: "@ai-sdk/openai-compatible",
     },
-    name: id,
+    name: model,
     capabilities: {
       temperature: true,
       reasoning: false,
@@ -63,7 +78,7 @@ function cachedModel(id: string) {
       context: 128000,
       output: 8192,
     },
-    status: "active" as const,
+    status: "active",
     options: {},
     headers: {},
     release_date: "",
@@ -72,42 +87,40 @@ function cachedModel(id: string) {
 }
 
 afterEach(async () => {
-  globalThis.fetch = originalFetch
-  await fs.rm(cachePath, { force: true }).catch(() => {})
+  globalThis.fetch = original
+  await fs.rm(cache, { force: true }).catch(() => {})
 })
 
-test("gptunnel loader maps models from API response", async () => {
-  await using tmp = await tmpdir({ config })
-  const fetchMock = mock(() =>
-    Promise.resolve(
-      new Response(
-        JSON.stringify({
-          data: [
-            {
-              id: "gpt-5-mini",
-              title: "GPT-5 Mini",
-              max_capacity: 256000,
-              max_output_tokens: 12000,
-              cost_context: "0.25",
-              cost_completion: "2.0",
-            },
-          ],
-        }),
-        { status: 200 },
-      ),
-    ),
-  )
-  globalThis.fetch = fetchMock as unknown as typeof fetch
+const it = testEffect(Provider.defaultLayer)
 
-  await Instance.provide({
-    directory: tmp.path,
-    init: async () => {
-      Env.set("GPTUNNEL_API_KEY", "test-key")
-    },
-    fn: async () => {
-      const providers = await Provider.list()
-      expect(providers.gptunnel).toBeDefined()
-      const model = providers.gptunnel.models["gpt-5-mini"]
+it.instance(
+  "gptunnel loader maps models from API response",
+  () =>
+    Effect.gen(function* () {
+      const fetch = mock(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              data: [
+                {
+                  id: "gpt-5-mini",
+                  title: "GPT-5 Mini",
+                  max_capacity: 256000,
+                  max_output_tokens: 12000,
+                  cost_context: "0.25",
+                  cost_completion: "2.0",
+                },
+              ],
+            }),
+            { status: 200 },
+          ),
+        ),
+      )
+      globalThis.fetch = fetch as unknown as typeof globalThis.fetch
+
+      const providers = yield* Provider.use.list()
+      expect(providers[id]).toBeDefined()
+      const model = providers[id].models["gpt-5-mini"]
       expect(model).toBeDefined()
       expect(model.name).toBe("GPT-5 Mini")
       expect(model.api.url).toBe("https://gptunnel.ru/v1")
@@ -118,98 +131,92 @@ test("gptunnel loader maps models from API response", async () => {
       expect(model.cost.output).toBe(2)
       expect(model.cost.cache.read).toBe(0)
       expect(model.cost.cache.write).toBe(0)
-      expect(await Bun.file(cachePath).exists()).toBe(true)
-    },
-  })
-})
+      expect(fetch).toHaveBeenCalled()
+      expect(yield* Effect.promise(() => Bun.file(cache).exists())).toBe(true)
+    }),
+  { config: keyed },
+)
 
-test("gptunnel loader does not autoload without key", async () => {
-  await using tmp = await tmpdir({ config })
-  const fetchMock = mock(() => Promise.reject(new Error("should not be called")))
-  globalThis.fetch = fetchMock as unknown as typeof fetch
+it.instance(
+  "gptunnel loader does not autoload without key",
+  () =>
+    Effect.gen(function* () {
+      const fetch = mock(() => Promise.reject(new Error("should not be called")))
+      globalThis.fetch = fetch as unknown as typeof globalThis.fetch
 
-  await Instance.provide({
-    directory: tmp.path,
-    fn: async () => {
-      const providers = await Provider.list()
-      expect(providers.gptunnel).toBeUndefined()
-      expect(fetchMock).not.toHaveBeenCalled()
-    },
-  })
-})
+      const providers = yield* Provider.use.list()
+      expect(providers[id]).toBeUndefined()
+      expect(fetch).not.toHaveBeenCalled()
+    }),
+  { config: base },
+)
 
-test("gptunnel loader falls back to cache when network request fails", async () => {
-  await using tmp = await tmpdir({ config })
-  await Bun.write(
-    cachePath,
-    JSON.stringify(
-      {
-        updated_at: Date.now() - 2 * 60 * 60 * 1000,
-        models: {
-          "cached-model": cachedModel("cached-model"),
-        },
-      },
-      null,
-      2,
-    ),
-  )
+it.instance(
+  "gptunnel loader falls back to cache when network request fails",
+  () =>
+    Effect.gen(function* () {
+      yield* Effect.promise(() =>
+        Bun.write(
+          cache,
+          JSON.stringify(
+            {
+              updated_at: Date.now() - 2 * 60 * 60 * 1000,
+              models: {
+                "cached-model": cached("cached-model"),
+              },
+            },
+            null,
+            2,
+          ),
+        ),
+      )
+      const fetch = mock(() => Promise.reject(new Error("network down")))
+      globalThis.fetch = fetch as unknown as typeof globalThis.fetch
 
-  const fetchMock = mock(() => Promise.reject(new Error("network down")))
-  globalThis.fetch = fetchMock as unknown as typeof fetch
+      const providers = yield* Provider.use.list()
+      expect(providers[id]).toBeDefined()
+      expect(providers[id].models["cached-model"]).toBeDefined()
+      expect(fetch).toHaveBeenCalled()
+    }),
+  { config: keyed },
+)
 
-  await Instance.provide({
-    directory: tmp.path,
-    init: async () => {
-      Env.set("GPTUNNEL_API_KEY", "test-key")
-    },
-    fn: async () => {
-      const providers = await Provider.list()
-      expect(providers.gptunnel).toBeDefined()
-      expect(providers.gptunnel.models["cached-model"]).toBeDefined()
-      expect(fetchMock).toHaveBeenCalled()
-    },
-  })
-})
+it.instance(
+  "gptunnel loader ignores expired cache without key",
+  () =>
+    Effect.gen(function* () {
+      yield* Effect.promise(() =>
+        Bun.write(
+          cache,
+          JSON.stringify(
+            {
+              updated_at: Date.now() - 2 * 60 * 60 * 1000,
+              models: {
+                stale: cached("stale"),
+              },
+            },
+            null,
+            2,
+          ),
+        ),
+      )
 
-test("gptunnel loader ignores expired cache without key", async () => {
-  await using tmp = await tmpdir({ config })
-  await Bun.write(
-    cachePath,
-    JSON.stringify(
-      {
-        updated_at: Date.now() - 2 * 60 * 60 * 1000,
-        models: {
-          stale: cachedModel("stale"),
-        },
-      },
-      null,
-      2,
-    ),
-  )
+      const providers = yield* Provider.use.list()
+      expect(providers[id]).toBeUndefined()
+    }),
+  { config: base },
+)
 
-  await Instance.provide({
-    directory: tmp.path,
-    fn: async () => {
-      const providers = await Provider.list()
-      expect(providers.gptunnel).toBeUndefined()
-    },
-  })
-})
+it.instance(
+  "gptunnel loader returns no provider when cache is missing and API fails",
+  () =>
+    Effect.gen(function* () {
+      const fetch = mock(() => Promise.reject(new Error("network down")))
+      globalThis.fetch = fetch as unknown as typeof globalThis.fetch
 
-test("gptunnel loader returns no provider when cache is missing and API fails", async () => {
-  await using tmp = await tmpdir({ config })
-  const fetchMock = mock(() => Promise.reject(new Error("network down")))
-  globalThis.fetch = fetchMock as unknown as typeof fetch
-
-  await Instance.provide({
-    directory: tmp.path,
-    init: async () => {
-      Env.set("GPTUNNEL_API_KEY", "test-key")
-    },
-    fn: async () => {
-      const providers = await Provider.list()
-      expect(providers.gptunnel).toBeUndefined()
-      expect(fetchMock).toHaveBeenCalled()
-    },
-  })
-})
+      const providers = yield* Provider.use.list()
+      expect(providers[id]).toBeUndefined()
+      expect(fetch).toHaveBeenCalled()
+    }),
+  { config: keyed },
+)

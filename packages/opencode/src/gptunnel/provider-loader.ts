@@ -1,11 +1,12 @@
 import z from "zod"
 import path from "path"
-import { Global } from "../global"
-import { Config } from "../config/config"
-import { Auth } from "../auth"
-import { Env } from "../env"
-import type { Provider } from "../provider/provider"
-import { ModelID, ProviderID } from "../provider/schema"
+import { Effect } from "effect"
+import { Global } from "@opencode-ai/core/global"
+import type { ConfigV1 } from "@opencode-ai/core/v1/config/config"
+import { ProviderV2 } from "@opencode-ai/core/provider"
+import { ModelV2 } from "@opencode-ai/core/model"
+import type { Auth } from "../auth"
+import type { Info, Model } from "../provider/provider"
 
 const GPTUNNEL_API_URL = "https://gptunnel.ru/v1"
 const gptunnelCache = path.join(Global.Path.cache, "gptunnel-models.json")
@@ -41,8 +42,14 @@ const GptunnelResponse = z.union([
 
 const GptunnelCache = z.object({
   updated_at: z.number(),
-  models: z.record(z.string(), z.custom<Provider.Model>()),
+  models: z.record(z.string(), z.custom<Model>()),
 })
+
+type Dep = {
+  auth: (id: string) => Effect.Effect<Auth.Info | undefined>
+  config: () => Effect.Effect<ConfigV1.Info>
+  env: () => Effect.Effect<Record<string, string | undefined>>
+}
 
 function numberFrom(input: unknown, fallback = 0) {
   if (typeof input === "number") return Number.isFinite(input) ? input : fallback
@@ -59,7 +66,7 @@ function stringFrom(input: unknown, fallback = "") {
   return fallback
 }
 
-function modelStatus(input: unknown): Provider.Model["status"] {
+function modelStatus(input: unknown): Model["status"] {
   const value = stringFrom(input).toLowerCase()
   if (value === "alpha" || value === "beta" || value === "deprecated" || value === "active") return value
   if (value === "stable") return "active"
@@ -86,14 +93,14 @@ function inferReleaseDate(model: GptunnelModel) {
   return ""
 }
 
-function fromGptunnelModel(model: GptunnelModel): Provider.Model {
+function fromGptunnelModel(model: GptunnelModel): Model {
   const context = numberFrom(model.max_capacity ?? model.max_context, 128000)
   const output = numberFrom(model.max_output ?? model.max_output_tokens, 16384)
   const reasoning = inferReasoning(model.id)
   const vision = inferVision(model.id)
   return {
-    id: ModelID.make(model.id),
-    providerID: ProviderID.make("gptunnel"),
+    id: ModelV2.ID.make(model.id),
+    providerID: ProviderV2.ID.make("gptunnel"),
     api: {
       id: model.id,
       url: GPTUNNEL_API_URL,
@@ -150,7 +157,7 @@ function fromGptunnelResponse(data: unknown) {
       acc[item.id] = fromGptunnelModel(item)
       return acc
     },
-    {} as Record<string, Provider.Model>,
+    {} as Record<string, Model>,
   )
 }
 
@@ -165,50 +172,55 @@ async function readGptunnelCache() {
     .catch(() => undefined)
 }
 
-async function writeGptunnelCache(models: Record<string, Provider.Model>) {
+async function writeGptunnelCache(models: Record<string, Model>) {
   await Bun.write(gptunnelCache, JSON.stringify({ updated_at: Date.now(), models }, null, 2)).catch(() => undefined)
 }
 
-export async function gptunnelCustomLoader(input: Provider.Info) {
-  const config = await Config.get()
-  const auth = await Auth.get("gptunnel")
-  const configKey = config.provider?.gptunnel?.options?.apiKey
-  const key = Env.get("GPTUNNEL_API_KEY") ?? (auth?.type === "api" ? auth.key : undefined)
-  const apiKey = key ?? (typeof configKey === "string" ? configKey : undefined)
+export function gptunnelCustomLoader(dep: Dep) {
+  return Effect.fnUntraced(function* (input: Info) {
+    const config = yield* dep.config()
+    const auth = yield* dep.auth("gptunnel")
+    const env = yield* dep.env()
+    const configKey = config.provider?.["gptunnel"]?.options?.apiKey
+    const key = env["GPTUNNEL_API_KEY"] ?? (auth?.type === "api" ? auth.key : undefined)
+    const apiKey = key ?? (typeof configKey === "string" ? configKey : undefined)
 
-  if (!apiKey) {
+    if (!apiKey) {
+      return { autoload: false }
+    }
+
+    const cache = yield* Effect.promise(() => readGptunnelCache())
+    const cachedModels = cache?.models
+    if (cachedModels && Date.now() - cache.updated_at <= gptunnelTTL && Object.keys(cachedModels).length > 0) {
+      input.models = cachedModels
+      return { autoload: true }
+    }
+
+    const models = yield* Effect.promise(() =>
+      fetch(`${GPTUNNEL_API_URL}/models?code`, {
+        headers: {
+          Authorization: apiKey.startsWith("Bearer ") ? apiKey : `Bearer ${apiKey}`,
+        },
+        signal: AbortSignal.timeout(15000),
+      })
+        .then(async (response) => {
+          if (!response.ok) throw new Error(`gptunnel models request failed with status ${response.status}`)
+          return fromGptunnelResponse(await response.json())
+        })
+        .catch(() => undefined),
+    )
+
+    if (models && Object.keys(models).length > 0) {
+      input.models = models
+      yield* Effect.promise(() => writeGptunnelCache(models))
+      return { autoload: true }
+    }
+
+    if (cachedModels && Object.keys(cachedModels).length > 0) {
+      input.models = cachedModels
+      return { autoload: true }
+    }
+
     return { autoload: false }
-  }
-
-  const cache = await readGptunnelCache()
-  const cachedModels = cache?.models
-  if (cachedModels && Date.now() - cache.updated_at <= gptunnelTTL && Object.keys(cachedModels).length > 0) {
-    input.models = cachedModels
-    return { autoload: true }
-  }
-
-  const models = await fetch(`${GPTUNNEL_API_URL}/models?code`, {
-    headers: {
-      Authorization: apiKey.startsWith("Bearer ") ? apiKey : `Bearer ${apiKey}`,
-    },
-    signal: AbortSignal.timeout(15000),
   })
-    .then(async (response) => {
-      if (!response.ok) throw new Error(`gptunnel models request failed with status ${response.status}`)
-      return fromGptunnelResponse(await response.json())
-    })
-    .catch(() => undefined)
-
-  if (models && Object.keys(models).length > 0) {
-    input.models = models
-    await writeGptunnelCache(models)
-    return { autoload: true }
-  }
-
-  if (cachedModels && Object.keys(cachedModels).length > 0) {
-    input.models = cachedModels
-    return { autoload: true }
-  }
-
-  return { autoload: false }
 }
