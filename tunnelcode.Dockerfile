@@ -30,6 +30,9 @@ RUN bash src/gptunnel/release.sh $RELEASE_FLAGS
 FROM nginx:alpine
 COPY --from=build /app/packages/opencode/src/gptunnel/docker-dist/ /usr/share/nginx/html/
 
+# Установочные скрипты отдаём как text/plain: без этого nginx отдаёт .ps1 как
+# application/octet-stream, и `irm ... | iex` получает байтовый массив вместо
+# текста скрипта
 RUN echo 'server { \
     listen 80; \
     server_name _; \
@@ -40,7 +43,7 @@ RUN echo 'server { \
         autoindex on; \
     } \
     \
-    location ~ \.sh$ { \
+    location ~ \.(sh|ps1)$ { \
         default_type text/plain; \
     } \
     \

@@ -81,54 +81,93 @@ describe("installation", () => {
   })
 
   describe("upgrade", () => {
+    // The manual-upgrade hint and the installer process are platform-specific:
+    // install.ps1 via powershell on win32, install.sh via bash/sh elsewhere.
+    const manualUrl = process.platform === "win32" ? TUNNELCODE.INSTALL_PS1_URL : TUNNELCODE.INSTALL_URL
+
     testEffect(testLayer(() => new Response("", { status: 200 }))).effect(
-      "blocks package manager upgrades because TunnelCode is distributed by the curl installer",
+      "blocks package manager upgrades because TunnelCode is distributed by the bundled installer",
       () =>
         Effect.gen(function* () {
           const err = yield* Effect.flip(Installation.use.upgrade("npm", "9.9.9"))
           expect(err).toBeInstanceOf(Installation.UpgradeFailedError)
           expect(err.stderr).toContain("bundled installer")
-          expect(err.stderr).toContain(TUNNELCODE.INSTALL_URL)
+          expect(err.stderr).toContain(manualUrl)
           expect(err.message).toBe(err.stderr)
         }),
     )
 
-    testEffect(
-      testLayer(
-        () => new Response("install script", { status: 200 }),
-        (cmd, args) => {
-          if (cmd === "bash" && args[0] === "--version") return "GNU bash"
-          if (cmd === "bash") return { code: 1, stderr: "script failed" }
-          return ""
-        },
-      ),
-    ).effect("returns installer stderr when the curl install script fails", () =>
-      Effect.gen(function* () {
-        const err = yield* Effect.flip(Installation.use.upgrade("curl", "9.9.9"))
-        expect(err).toBeInstanceOf(Installation.UpgradeFailedError)
-        expect(err.stderr).toBe("script failed")
-        expect(err.message).toBe(err.stderr)
-      }),
-    )
+    describe.skipIf(process.platform === "win32")("via install.sh", () => {
+      testEffect(
+        testLayer(
+          () => new Response("install script", { status: 200 }),
+          (cmd, args) => {
+            if (cmd === "bash" && args[0] === "--version") return "GNU bash"
+            if (cmd === "bash") return { code: 1, stderr: "script failed" }
+            return ""
+          },
+        ),
+      ).effect("returns installer stderr when the curl install script fails", () =>
+        Effect.gen(function* () {
+          const err = yield* Effect.flip(Installation.use.upgrade("curl", "9.9.9"))
+          expect(err).toBeInstanceOf(Installation.UpgradeFailedError)
+          expect(err.stderr).toBe("script failed")
+          expect(err.message).toBe(err.stderr)
+        }),
+      )
 
-    const commands: string[] = []
-    testEffect(
-      testLayer(
-        () => new Response("install script", { status: 200 }),
-        (cmd, args) => {
-          commands.push([cmd, ...args].join(" "))
-          if (cmd === "bash" && args[0] === "--version") return { code: 1, stderr: "missing" }
-          if (cmd === "bash") return { code: 1, stderr: "should not execute installer with bash" }
-          if (cmd === "sh") return "ok"
-          return ""
-        },
-      ),
-    ).effect("falls back to sh when bash is unavailable during curl upgrade", () =>
-      Effect.gen(function* () {
-        yield* Installation.use.upgrade("curl", "9.9.9")
-        expect(commands).toContain("bash --version")
-        expect(commands).toContain("sh")
-      }),
-    )
+      const commands: string[] = []
+      testEffect(
+        testLayer(
+          () => new Response("install script", { status: 200 }),
+          (cmd, args) => {
+            commands.push([cmd, ...args].join(" "))
+            if (cmd === "bash" && args[0] === "--version") return { code: 1, stderr: "missing" }
+            if (cmd === "bash") return { code: 1, stderr: "should not execute installer with bash" }
+            if (cmd === "sh") return "ok"
+            return ""
+          },
+        ),
+      ).effect("falls back to sh when bash is unavailable during curl upgrade", () =>
+        Effect.gen(function* () {
+          yield* Installation.use.upgrade("curl", "9.9.9")
+          expect(commands).toContain("bash --version")
+          expect(commands).toContain("sh")
+        }),
+      )
+    })
+
+    describe.skipIf(process.platform !== "win32")("via install.ps1", () => {
+      const commands: string[] = []
+      testEffect(
+        testLayer(
+          () => new Response("", { status: 200 }),
+          (cmd, args) => {
+            commands.push([cmd, ...args].join(" "))
+            return ""
+          },
+        ),
+      ).effect("runs the powershell installer for curl upgrades", () =>
+        Effect.gen(function* () {
+          yield* Installation.use.upgrade("curl", "9.9.9")
+          const installer = commands.find((c) => c.startsWith("powershell"))
+          expect(installer).toContain(TUNNELCODE.INSTALL_PS1_URL)
+        }),
+      )
+
+      testEffect(
+        testLayer(
+          () => new Response("", { status: 200 }),
+          (cmd) => (cmd === "powershell" ? { code: 1, stderr: "installer failed" } : ""),
+        ),
+      ).effect("returns installer stderr when install.ps1 fails", () =>
+        Effect.gen(function* () {
+          const err = yield* Effect.flip(Installation.use.upgrade("curl", "9.9.9"))
+          expect(err).toBeInstanceOf(Installation.UpgradeFailedError)
+          expect(err.stderr).toBe("installer failed")
+          expect(err.message).toBe(err.stderr)
+        }),
+      )
+    })
   })
 })

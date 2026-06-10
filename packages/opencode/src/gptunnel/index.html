@@ -711,8 +711,7 @@
         }
 
         function copyCommand(btn, id) {
-            btn = btn || document.querySelector('.copy-btn');
-            const cmd = document.getElementById(id || 'install-cmd').innerText;
+            const cmd = document.getElementById(id).innerText;
             navigator.clipboard.writeText(cmd).then(() => {
                 const original = btn.innerText;
                 btn.innerText = '[ COPIED! ]';
