@@ -115,6 +115,26 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
 
     const upgradeCurl = Effect.fnUntraced(
       function* (target: string) {
+        // Windows: run the same `irm <install.ps1> | iex` one-liner we document for
+        // fresh installs. The installer reads the pinned version from $env:TUNNELCODE_VERSION.
+        if (process.platform === "win32") {
+          const result = yield* appProcess.run(
+            ChildProcess.make(
+              "powershell",
+              ["-NoProfile", "-NonInteractive", "-Command", `irm ${TUNNELCODE.INSTALL_PS1_URL} | iex`],
+              {
+                env: { TUNNELCODE_VERSION: target },
+                extendEnv: true,
+              },
+            ),
+          )
+          return {
+            code: result.exitCode,
+            stdout: result.stdout.toString("utf8"),
+            stderr: result.stderr.toString("utf8"),
+          }
+        }
+        // POSIX: pipe install.sh into bash/sh.
         const response = yield* httpOk.execute(HttpClientRequest.get(TUNNELCODE.INSTALL_URL))
         const body = yield* response.text
         const bodyBytes = new TextEncoder().encode(body)
@@ -184,8 +204,12 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
       }, Effect.orDie),
       upgrade: Effect.fn("Installation.upgrade")(function* (m: Method, target: string) {
         if (m !== "curl") {
+          const manual =
+            process.platform === "win32"
+              ? `Run: irm ${TUNNELCODE.INSTALL_PS1_URL} | iex`
+              : `Run: curl -fsSL ${TUNNELCODE.INSTALL_URL} | bash`
           return yield* new UpgradeFailedError({
-            stderr: `TunnelCode upgrades use the curl installer. Run: curl -fsSL ${TUNNELCODE.INSTALL_URL} | bash`,
+            stderr: `TunnelCode upgrades use the bundled installer. ${manual}`,
           })
         }
         const upgradeResult = yield* upgradeCurl(target)

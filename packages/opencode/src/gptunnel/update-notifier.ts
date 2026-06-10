@@ -17,6 +17,12 @@ interface UpdateCache {
 
 export function notifyIfUpdateAvailable() {
   if (CURRENT_VERSION === "local") return
+  // On Windows a previous auto-update renames the in-use binary to tunnelcode.old.exe.
+  // It's no longer locked after the restart, so clear it best-effort on launch.
+  if (process.platform === "win32") {
+    const stale = path.join(os.homedir(), TUNNELCODE.INSTALL_DIR, "bin", "tunnelcode.old.exe")
+    $`cmd /c del /f /q ${stale}`.quiet().nothrow()
+  }
   doCheck().catch(() => {})
 }
 
@@ -94,7 +100,31 @@ async function autoUpgrade(latest: string) {
 
     await $`mkdir -p ${installDir}`.quiet().nothrow()
 
-    if (ext === "tar.gz") {
+    if (platform === "win32") {
+      // Windows ships no `unzip`; extract with the built-in Expand-Archive.
+      // It also can't overwrite a running .exe, so extract to a temp dir and
+      // swap: move the in-use binary aside, then drop the fresh one in place.
+      const extractDir = path.join(os.tmpdir(), `tunnelcode-update-${latest}`)
+      await $`cmd /c rmdir /s /q ${extractDir}`.quiet().nothrow()
+      const r =
+        await $`powershell -NoProfile -NonInteractive -Command ${`Expand-Archive -LiteralPath '${tmpFile}' -DestinationPath '${extractDir}' -Force`}`
+          .quiet()
+          .nothrow()
+      if (r.exitCode !== 0) throw new Error("extract failed")
+
+      const cur = path.join(installDir, bin)
+      const stale = path.join(installDir, "tunnelcode.old.exe")
+      const fresh = path.join(extractDir, bin)
+      await $`cmd /c del /f /q ${stale}`.quiet().nothrow()
+      await $`cmd /c move /y ${cur} ${stale}`.quiet().nothrow()
+      const mv = await $`cmd /c move /y ${fresh} ${cur}`.quiet().nothrow()
+      if (mv.exitCode !== 0) {
+        // Swap failed — restore the original binary so the install isn't left broken.
+        await $`cmd /c move /y ${stale} ${cur}`.quiet().nothrow()
+        throw new Error("swap failed")
+      }
+      await $`cmd /c rmdir /s /q ${extractDir}`.quiet().nothrow()
+    } else if (ext === "tar.gz") {
       const r = await $`tar -xzf ${tmpFile} -C ${installDir}`.quiet().nothrow()
       if (r.exitCode !== 0) throw new Error("extract failed")
     } else {
@@ -103,7 +133,7 @@ async function autoUpgrade(latest: string) {
     }
 
     await $`rm -f ${tmpFile}`.quiet().nothrow()
-    await $`chmod +x ${path.join(installDir, bin)}`.quiet().nothrow()
+    if (platform !== "win32") await $`chmod +x ${path.join(installDir, bin)}`.quiet().nothrow()
 
     await writeCache({ timestamp: Date.now(), latest, upgraded: true })
     process.stderr.write(` done. Restart to use the new version.\n\n`)

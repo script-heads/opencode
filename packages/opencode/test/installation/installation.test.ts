@@ -87,7 +87,7 @@ describe("installation", () => {
         Effect.gen(function* () {
           const err = yield* Effect.flip(Installation.use.upgrade("npm", "9.9.9"))
           expect(err).toBeInstanceOf(Installation.UpgradeFailedError)
-          expect(err.stderr).toContain("curl installer")
+          expect(err.stderr).toContain("bundled installer")
           expect(err.stderr).toContain(TUNNELCODE.INSTALL_URL)
           expect(err.message).toBe(err.stderr)
         }),

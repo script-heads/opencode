@@ -82,11 +82,12 @@ echo "==> Created releases/latest.txt with version $VERSION"
 
 bun run script/gptunnel-release-check.ts --release-dir "$DOCKER_DIST/releases/v${VERSION}" $CHECK_FLAG
 
-# Копируем install.sh, index.html и assets
+# Копируем install.sh, install.ps1 (нативный Windows), index.html и assets
 cp "$SCRIPT_DIR/install.sh" "$DOCKER_DIST/"
+cp "$SCRIPT_DIR/install.ps1" "$DOCKER_DIST/"
 cp "$SCRIPT_DIR/index.html" "$DOCKER_DIST/"
 cp -r "$SCRIPT_DIR/assets" "$DOCKER_DIST/"
-echo "==> Copied install.sh, index.html and assets/"
+echo "==> Copied install.sh, install.ps1, index.html and assets/"
 
 echo ""
 echo "==> Docker upload directory ready: $DOCKER_DIST"
