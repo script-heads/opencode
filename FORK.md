@@ -17,12 +17,15 @@
 | `packages/opencode/src/gptunnel/update-notifier.ts` | Фоновая проверка обновлений при запуске (кеш 24ч, stderr) |
 | `packages/opencode/src/gptunnel/install.sh` | Curl-установщик для пользователей (`curl -fsSL gptunnel.ru/install.sh \| bash`) |
 | `packages/opencode/src/gptunnel/release.sh` | Сборка + переименование архивов opencode-* → tunnelcode-* |
-| `packages/opencode/src/gptunnel/upload.sh` | Загрузка архивов на сервер gptunnel.ru |
+| `packages/opencode/src/gptunnel/upload.sh` | Локальный фоллбек: сборка tunnelcode.Dockerfile + пуш в cr.yandex |
 | `packages/opencode/src/gptunnel/index.html` | Лендинг code.gptunnel.ru |
 | `packages/opencode/src/gptunnel/assets/` | Фавиконки и OG-картинки для лендинга |
 | `packages/opencode/src/gptunnel/og-image.jpeg` | OG-изображение |
-| `packages/opencode/src/gptunnel/manifest.yaml` | Манифест для Docker/K8s деплоя |
-| `packages/opencode/src/gptunnel/opencode.Dockerfile` | Dockerfile для сервера дистрибуции |
+| `.drone.yml` | CI: Build/Upload по custom/tag, Deploy по promote |
+| `tunnelcode.Dockerfile` | Единственный Dockerfile дистрибуции: bun-сборка всех платформ → nginx |
+| `kube/env.sh` | Общие переменные kube-скриптов: реестр, версия, версия bun |
+| `kube/build.sh`, `kube/upload.sh`, `kube/deploy.sh` | Drone-скрипты: docker build / push в cr.yandex / kubectl apply + rollout status |
+| `kube/manifests/tunnelcode.yaml` | K8s-манифест (Ingress+Service+Deployment), образ пинуется через `_VERSION` |
 | `packages/opencode/bin/tunnelcode` | Shell-скрипт launcher: устанавливает дефолтный конфиг и запускает opencode |
 | `packages/opencode/test/provider/gptunnel.test.ts` | Тесты GPTunnel провайдера |
 | `FORK.md` | Этот файл |
@@ -121,12 +124,30 @@ bun run build -- --single
 
 TunnelCode распространяется через `gptunnel.ru` как бинарник (curl install). Не публикуется в npm/brew/choco.
 
-### Сборка и релиз
+### Сборка и релиз (Drone CI)
+
+Секреты (`DOCKER_KEY` — base64 json-ключа SA drone,
+`KUBE_CONFIG` — base64 kubeconfig) хранятся в Drone, в репо их нет.
+
+1. **Build** — custom event (кнопка в Drone UI) или git-тег: `kube/build.sh tunnelcode`
+   собирает `tunnelcode.Dockerfile` (внутри: bun-сборка всех платформ через `release.sh`).
+   Версия релиза = `<версия package.json>.<номер билда>`, напр. `1.17.1.42` — она же
+   тег образа, она же в `latest.txt` и бинарниках, поэтому ребилд той же upstream-версии
+   доезжает до пользователей через auto-update.
+2. **Upload** — `kube/upload.sh tunnelcode`: docker login в cr.yandex ключом SA drone,
+   push версионного тега + `latest` (информационный; деплой использует только пиновный тег).
+3. **Deploy** — promote билда в Drone (target `tunnelcode`, указывать номер **Build**-прогона):
+   `kube/deploy.sh` подставляет версию в `kube/manifests/*.yaml` (`_VERSION`), делает
+   `kubectl apply` и ждёт `rollout status` — упавший pull валит пайплайн, а не молчит.
+
+Манифест сам по себе (`kubectl apply -f` без deploy.sh) не применим — в нём
+плейсхолдер `_VERSION`; подставьте тег вручную или используйте promote.
+
+Локальный фоллбек (нужны права pusher на cr.yandex):
 
 ```bash
-cd packages/opencode
-bash src/gptunnel/release.sh          # сборка + переименование архивов
-bash src/gptunnel/upload.sh user@srv  # загрузка на сервер
+bash packages/opencode/src/gptunnel/upload.sh --push   # из любого места
+# затем: kubectl set image deployment/tunnelcode tunnelcode=<образ>:<тег> -n timenote
 ```
 
 ### Установка пользователем

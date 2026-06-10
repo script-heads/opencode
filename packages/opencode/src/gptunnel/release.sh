@@ -20,7 +20,12 @@ else
   echo "==> Building tunnelcode (all platforms for Docker)..."
 fi
 
-VERSION=$(node -p "require('./package.json').version")
+VERSION=$(bun -p "require('./package.json').version")
+# CI passes TUNNELCODE_BUILD so rebuilds of the same upstream version get a
+# distinct, auto-update-visible version (latest.txt and binaries get 1.17.1.42).
+if [ -n "${TUNNELCODE_BUILD:-}" ]; then
+  VERSION="$VERSION.$TUNNELCODE_BUILD"
+fi
 echo "==> Version: $VERSION"
 
 OPENCODE_VERSION=$VERSION bun run script/build.ts $SINGLE_FLAG

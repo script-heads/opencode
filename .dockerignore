@@ -10,3 +10,4 @@ node_modules
 **/.turbo
 **/.vite
 **/coverage
+packages/opencode/src/gptunnel/docker-dist

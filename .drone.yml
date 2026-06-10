@@ -1,0 +1,45 @@
+# TunnelCode distribution: build + publish image, deploy to k8s.
+# Secrets (DOCKER_KEY, KUBE_CONFIG) live in Drone, never in this public repo.
+# Pipelines trigger only on custom/tag/promote events, so fork PRs never see secrets.
+kind: pipeline
+type: exec
+name: Build
+trigger:
+  event:
+    include:
+      - custom
+      - tag
+
+steps:
+  - name: Build
+    commands:
+      - kube/build.sh tunnelcode
+
+  - name: Upload
+    depends_on:
+      - Build
+    environment:
+      DOCKER_KEY:
+        from_secret: DOCKER_KEY
+    commands:
+      - kube/upload.sh tunnelcode
+
+---
+# Deploy setup
+kind: pipeline
+type: exec
+name: Deploy
+trigger:
+  event:
+    - promote
+    - rollback
+  target:
+    - tunnelcode
+
+steps:
+  - name: Deploy
+    environment:
+      KUBE_CONFIG:
+        from_secret: KUBE_CONFIG
+    commands:
+      - kube/deploy.sh

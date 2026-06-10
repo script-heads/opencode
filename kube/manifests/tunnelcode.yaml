@@ -121,7 +121,8 @@ spec:
             requests:
               cpu: "50m"
               memory: "128Mi"
-          image: cr.yandex/crptshuuct3ne1mn7rg1/tunnelcode:latest
+          # `_VERSION` is substituted by kube/deploy.sh (package version + drone build number)
+          image: cr.yandex/crptshuuct3ne1mn7rg1/tunnelcode:_VERSION
           ports:
             - containerPort: 80
           readinessProbe:
@@ -142,4 +143,4 @@ spec:
             periodSeconds: 3
             failureThreshold: 5
             successThreshold: 1
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
