@@ -127,11 +127,11 @@ TunnelCode распространяется через `gptunnel.ru` как би
 ### Сборка и релиз (Drone CI)
 
 Drone подключён к GitLab (`git.shds.io`), поэтому сборка идёт из зеркала
-`git.shds.io:gptunnel/tunnelcode` (паттерн как у `gpt`). GitHub — публичный
+`git.shds.io:gptunnel/tc` (паттерн как у `gpt`). GitHub — публичный
 origin, зеркало пушится руками перед релизом:
 
 ```bash
-git push gitlab dev        # remote: git@git.shds.io:gptunnel/tunnelcode.git
+git push gitlab dev        # remote: git@git.shds.io:gptunnel/tc.git
 ```
 
 Секреты (`DOCKER_KEY` — base64 json-ключа SA drone,
