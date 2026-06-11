@@ -28,9 +28,11 @@ export function formatNumber(value: number, locale: string) {
 }
 
 export function formatCurrency(value: number, locale: string) {
+  // session costs are RUB (gptunnel pricing) — keep in sync with COST_CURRENCY
+  // in packages/opencode/src/gptunnel/currency.ts
   return new Intl.NumberFormat(normalizeLocale(locale), {
     style: "currency",
-    currency: "USD",
+    currency: "RUB",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value)

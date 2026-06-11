@@ -40,7 +40,12 @@ const GptunnelResponse = z.union([
   z.array(GptunnelModel),
 ])
 
+// v2: cost fields converted from RUB per 1K tokens to per 1M. Caches without
+// a matching version (including pre-versioning ones) fail parsing and are refetched.
+const GPTUNNEL_CACHE_VERSION = 2
+
 const GptunnelCache = z.object({
+  version: z.literal(GPTUNNEL_CACHE_VERSION),
   updated_at: z.number(),
   models: z.record(z.string(), z.custom<Model>()),
 })
@@ -93,11 +98,22 @@ function inferReleaseDate(model: GptunnelModel) {
   return ""
 }
 
+// GPTunnel RU API returns prices in RUB per 1K tokens, while opencode's cost
+// math (session getUsage) assumes price per 1M tokens.
+const PER_1K_TO_PER_1M = 1000
+
 function fromGptunnelModel(model: GptunnelModel): Model {
   const context = numberFrom(model.max_capacity ?? model.max_context, 128000)
   const output = numberFrom(model.max_output ?? model.max_output_tokens, 16384)
   const reasoning = inferReasoning(model.id)
   const vision = inferVision(model.id)
+  const inputCost = numberFrom(model.cost_context) * PER_1K_TO_PER_1M
+  const outputCost = numberFrom(model.cost_completion) * PER_1K_TO_PER_1M
+  // The API doesn't expose cache prices yet and bills cached tokens at the
+  // full input rate, so fall back to the input price when fields are absent.
+  const cacheReadCost = model.cache_read === undefined ? inputCost : numberFrom(model.cache_read) * PER_1K_TO_PER_1M
+  const cacheWriteCost =
+    model.cache_write === undefined ? inputCost : numberFrom(model.cache_write) * PER_1K_TO_PER_1M
   return {
     id: ModelV2.ID.make(model.id),
     providerID: ProviderV2.ID.make("gptunnel"),
@@ -129,11 +145,11 @@ function fromGptunnelModel(model: GptunnelModel): Model {
       interleaved: false,
     },
     cost: {
-      input: numberFrom(model.cost_context),
-      output: numberFrom(model.cost_completion),
+      input: inputCost,
+      output: outputCost,
       cache: {
-        read: numberFrom(model.cache_read),
-        write: numberFrom(model.cache_write),
+        read: cacheReadCost,
+        write: cacheWriteCost,
       },
     },
     limit: {
@@ -173,7 +189,10 @@ async function readGptunnelCache() {
 }
 
 async function writeGptunnelCache(models: Record<string, Model>) {
-  await Bun.write(gptunnelCache, JSON.stringify({ updated_at: Date.now(), models }, null, 2)).catch(() => undefined)
+  await Bun.write(
+    gptunnelCache,
+    JSON.stringify({ version: GPTUNNEL_CACHE_VERSION, updated_at: Date.now(), models }, null, 2),
+  ).catch(() => undefined)
 }
 
 export function gptunnelCustomLoader(dep: Dep) {

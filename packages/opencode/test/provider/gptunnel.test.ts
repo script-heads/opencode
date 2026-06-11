@@ -144,10 +144,12 @@ it.instance(
       expect(model.api.npm).toBe("@ai-sdk/openai-compatible")
       expect(model.limit.context).toBe(256000)
       expect(model.limit.output).toBe(12000)
-      expect(model.cost.input).toBe(0.25)
-      expect(model.cost.output).toBe(2)
-      expect(model.cost.cache.read).toBe(0)
-      expect(model.cost.cache.write).toBe(0)
+      // API prices are RUB per 1K tokens; internal cost fields are per 1M
+      expect(model.cost.input).toBe(250)
+      expect(model.cost.output).toBe(2000)
+      // cache prices aren't exposed by the API — billed at the full input rate
+      expect(model.cost.cache.read).toBe(250)
+      expect(model.cost.cache.write).toBe(250)
       expect(fetch).toHaveBeenCalled()
       expect(yield* Effect.promise(() => Bun.file(cache).exists())).toBe(true)
     }),
@@ -225,6 +227,7 @@ it.instance(
           cache,
           JSON.stringify(
             {
+              version: 2,
               updated_at: Date.now() - 2 * 60 * 60 * 1000,
               models: {
                 "cached-model": cached("cached-model"),
@@ -246,6 +249,44 @@ it.instance(
   { config: keyed },
 )
 
+// Pre-v2 caches hold prices in RUB per 1K tokens; serving them as per-1M would
+// understate costs 1000x, so a cache without the current version must be refetched.
+it.instance(
+  "gptunnel loader ignores unversioned cache and refetches from API",
+  () =>
+    Effect.gen(function* () {
+      yield* Effect.promise(() =>
+        Bun.write(
+          cache,
+          JSON.stringify(
+            {
+              updated_at: Date.now(),
+              models: {
+                "cached-model": cached("cached-model"),
+              },
+            },
+            null,
+            2,
+          ),
+        ),
+      )
+      const fetch = mock(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ data: [{ id: "fresh-model", cost_context: "0.25" }] }), { status: 200 }),
+        ),
+      )
+      globalThis.fetch = fetch as unknown as typeof globalThis.fetch
+
+      const providers = yield* Provider.use.list()
+      expect(providers[id]).toBeDefined()
+      expect(providers[id].models["cached-model"]).toBeUndefined()
+      expect(providers[id].models["fresh-model"]).toBeDefined()
+      expect(providers[id].models["fresh-model"].cost.input).toBe(250)
+      expect(fetch).toHaveBeenCalled()
+    }),
+  { config: keyed },
+)
+
 it.instance(
   "gptunnel loader ignores expired cache without key",
   () =>
@@ -255,6 +296,7 @@ it.instance(
           cache,
           JSON.stringify(
             {
+              version: 2,
               updated_at: Date.now() - 2 * 60 * 60 * 1000,
               models: {
                 stale: cached("stale"),

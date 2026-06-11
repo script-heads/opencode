@@ -44,18 +44,18 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
   })
   const messages = createMemo(() => (params.id ? (sync.data.message[params.id] ?? []) : []))
 
-  const usd = createMemo(
+  const money = createMemo(
     () =>
       new Intl.NumberFormat(language.intl(), {
         style: "currency",
-        currency: "USD",
+        currency: "RUB",
       }),
   )
 
   const metrics = createMemo(() => getSessionContextMetrics(messages(), [...providers.all().values()]))
   const context = createMemo(() => metrics().context)
   const cost = createMemo(() => {
-    return usd().format(metrics().totalCost)
+    return money().format(metrics().totalCost)
   })
 
   const openContext = () => {

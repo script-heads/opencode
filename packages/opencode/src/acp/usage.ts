@@ -5,6 +5,7 @@ import { InstanceStore } from "@/project/instance-store"
 import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
 import { Provider } from "@/provider/provider"
+import { COST_CURRENCY } from "@/gptunnel/currency"
 import { Context, Effect, Layer, SynchronizedRef } from "effect"
 
 export type AssistantTokenCost = Pick<OpenCodeAssistantMessage, "cost" | "tokens">
@@ -206,7 +207,7 @@ export const layer = Layer.effect(
               sessionUpdate: "usage_update",
               used: message.tokens.input + message.tokens.cache.read,
               size,
-              cost: { amount: totalSessionCost(messages), currency: "USD" },
+              cost: { amount: totalSessionCost(messages), currency: COST_CURRENCY },
             },
           })
           .catch(() => {}),

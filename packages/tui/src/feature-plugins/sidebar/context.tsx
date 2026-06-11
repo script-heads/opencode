@@ -5,9 +5,9 @@ import { createMemo } from "solid-js"
 
 const id = "internal:sidebar-context"
 
-const money = new Intl.NumberFormat("en-US", {
+const money = new Intl.NumberFormat("ru-RU", {
   style: "currency",
-  currency: "USD",
+  currency: "RUB",
 })
 
 function View(props: { api: TuiPluginApi; session_id: string }) {

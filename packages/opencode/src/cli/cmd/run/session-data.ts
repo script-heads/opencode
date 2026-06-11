@@ -29,9 +29,9 @@ import * as Locale from "@/util/locale"
 import { toolView } from "./tool"
 import type { FooterOutput, FooterPatch, FooterView, StreamCommit } from "./types"
 
-const money = new Intl.NumberFormat("en-US", {
+const money = new Intl.NumberFormat("ru-RU", {
   style: "currency",
-  currency: "USD",
+  currency: "RUB",
 })
 
 type Tokens = {

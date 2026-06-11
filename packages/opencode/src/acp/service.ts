@@ -44,6 +44,7 @@ import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
 import { Provider } from "@/provider/provider"
 import type { Command } from "@/command"
+import { COST_CURRENCY } from "@/gptunnel/currency"
 
 export const AuthMethodID = "opencode-login"
 
@@ -649,7 +650,7 @@ function makeUsageService(sdk: OpencodeClient) {
             sessionUpdate: "usage_update",
             used: message.tokens.input + message.tokens.cache.read,
             size,
-            cost: { amount: UsageService.totalSessionCost(messages), currency: "USD" },
+            cost: { amount: UsageService.totalSessionCost(messages), currency: COST_CURRENCY },
           },
         })
         .catch(() => {}),

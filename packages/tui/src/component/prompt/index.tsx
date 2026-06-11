@@ -93,9 +93,9 @@ export type PromptRef = {
   submit(): void
 }
 
-const money = new Intl.NumberFormat("en-US", {
+const money = new Intl.NumberFormat("ru-RU", {
   style: "currency",
-  currency: "USD",
+  currency: "RUB",
 })
 
 const DRAFT_RETENTION_MIN_CHARS = 20
