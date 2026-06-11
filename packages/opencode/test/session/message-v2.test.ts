@@ -1514,6 +1514,17 @@ describe("session.message-v2.fromError", () => {
     })
   })
 
+  test("keeps plain string errors verbatim without JSON quoting", () => {
+    const result = MessageV2.fromError("JSON error injected into SSE stream", { providerID })
+
+    expect(result).toStrictEqual({
+      name: "UnknownError",
+      data: {
+        message: "JSON error injected into SSE stream",
+      },
+    })
+  })
+
   test("serializes tagged errors with their message", () => {
     const result = MessageV2.fromError(new Question.RejectedError(), { providerID })
 

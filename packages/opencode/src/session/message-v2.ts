@@ -737,7 +737,7 @@ export function fromError(
           ).toObject()
         }
       } catch {}
-      return new NamedError.Unknown({ message: JSON.stringify(e) }, { cause: e }).toObject()
+      return new NamedError.Unknown({ message: errorMessage(e) }, { cause: e }).toObject()
   }
 }
 
