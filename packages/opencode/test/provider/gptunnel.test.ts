@@ -91,6 +91,23 @@ afterEach(async () => {
   await fs.rm(cache, { force: true }).catch(() => {})
 })
 
+const withEnv = <A, E, R>(values: Record<string, string>, effect: Effect.Effect<A, E, R>) =>
+  Effect.acquireUseRelease(
+    Effect.sync(() => {
+      const previous = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]] as const))
+      Object.assign(process.env, values)
+      return previous
+    }),
+    () => effect,
+    (previous) =>
+      Effect.sync(() => {
+        for (const [key, value] of Object.entries(previous)) {
+          if (value === undefined) delete process.env[key]
+          else process.env[key] = value
+        }
+      }),
+  )
+
 const it = testEffect(Provider.defaultLayer)
 
 it.instance(
@@ -135,6 +152,54 @@ it.instance(
       expect(yield* Effect.promise(() => Bun.file(cache).exists())).toBe(true)
     }),
   { config: keyed },
+)
+
+// Regression: when the key comes from env or auth.json, the providers entry is
+// created (with empty models) BEFORE the custom loader runs, so the loader's
+// models must be carried over by the `models: data.models` patch in provider.ts.
+// That line was lost once in an upstream merge — these two tests pin it down.
+it.instance(
+  "gptunnel models survive when providers entry pre-exists via GPTUNNEL_API_KEY env",
+  () =>
+    withEnv(
+      { GPTUNNEL_API_KEY: "env-key" },
+      Effect.gen(function* () {
+        const fetch = mock(() =>
+          Promise.resolve(
+            new Response(JSON.stringify({ data: [{ id: "gpt-5-mini", title: "GPT-5 Mini" }] }), { status: 200 }),
+          ),
+        )
+        globalThis.fetch = fetch as unknown as typeof globalThis.fetch
+
+        const providers = yield* Provider.use.list()
+        expect(providers[id]).toBeDefined()
+        expect(providers[id].models["gpt-5-mini"]).toBeDefined()
+        expect(fetch).toHaveBeenCalled()
+      }),
+    ),
+  { config: base },
+)
+
+it.instance(
+  "gptunnel models survive when providers entry pre-exists via stored api key",
+  () =>
+    withEnv(
+      { OPENCODE_AUTH_CONTENT: JSON.stringify({ gptunnel: { type: "api", key: "auth-key" } }) },
+      Effect.gen(function* () {
+        const fetch = mock(() =>
+          Promise.resolve(
+            new Response(JSON.stringify({ data: [{ id: "gpt-5-mini", title: "GPT-5 Mini" }] }), { status: 200 }),
+          ),
+        )
+        globalThis.fetch = fetch as unknown as typeof globalThis.fetch
+
+        const providers = yield* Provider.use.list()
+        expect(providers[id]).toBeDefined()
+        expect(providers[id].models["gpt-5-mini"]).toBeDefined()
+        expect(fetch).toHaveBeenCalled()
+      }),
+    ),
+  { config: base },
 )
 
 it.instance(

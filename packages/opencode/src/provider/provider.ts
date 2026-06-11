@@ -1517,7 +1517,13 @@ export const layer = Layer.effect(
             if (result.vars) varsLoaders[providerID] = result.vars
             if (result.discoverModels) discoveryLoaders[providerID] = result.discoverModels
             const opts = result.options ?? {}
-            const patch: Partial<Info> = providers[providerID] ? { options: opts } : { source: "custom", options: opts }
+            // tunnelcode: keep `models: data.models` in the true branch — loaders like
+            // gptunnel reassign input.models on the database entry, and a providers
+            // entry created earlier (env/auth key steps) still points at the empty
+            // object otherwise. Lost once in an upstream merge; see FORK.md.
+            const patch: Partial<Info> = providers[providerID]
+              ? { options: opts, models: data.models }
+              : { source: "custom", options: opts }
             mergeProvider(providerID, patch)
           }
         }
