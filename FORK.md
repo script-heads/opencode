@@ -128,11 +128,19 @@ TunnelCode распространяется через `gptunnel.ru` как би
 
 Drone подключён к GitLab (`git.shds.io`), поэтому сборка идёт из зеркала
 `git.shds.io:gptunnel/tc` (паттерн как у `gpt`). GitHub — публичный
-origin, зеркало пушится руками перед релизом:
+origin. Чтобы зеркало не отставало, у `origin` настроены два push-URL —
+обычный `git push origin dev` обновляет оба репозитория. Настройка
+локальная (`.git/config`), после нового клона повторить:
 
 ```bash
-git push gitlab dev        # remote: git@git.shds.io:gptunnel/tc.git
+git remote set-url --add --push origin git@github.com:script-heads/opencode.git
+git remote set-url --add --push origin git@git.shds.io:gptunnel/tc.git
 ```
+
+Отдельный remote `gitlab` оставлен для fetch и точечных пушей
+(`git push gitlab dev`). Нюанс: при `--force-with-lease` lease проверяется
+по tracking-ref'ам GitHub; зеркало пишется только с этой машины, так что
+это безопасно, но пуш в GitLab из других мест ломает гарантию.
 
 Секреты (`DOCKER_KEY` — base64 json-ключа SA drone,
 `KUBE_CONFIG` — base64 kubeconfig) хранятся в Drone, в репо их нет.
