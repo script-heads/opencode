@@ -126,7 +126,10 @@ export const TuiThreadCommand = cmd({
       }
       const cwd = Filesystem.resolve(process.cwd())
 
-      const worker = new Worker(file)
+      // tunnelcode: Bun workers don't inherit runtime process.env mutations, so the
+      // OPENCODE_CONFIG_CONTENT default set by gptunnel/defaults.ts in the main
+      // thread never reaches the server worker without an explicit env pass.
+      const worker = new Worker(file, { env: { ...process.env } } as WorkerOptions)
       const client = Rpc.client<typeof rpc>(worker)
       const reload = () => {
         client.call("reload", undefined).catch(() => {})

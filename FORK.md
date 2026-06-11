@@ -49,6 +49,7 @@
 | `src/cli/cmd/run.ts` | describe + option describe → tunnelcode | ~2% |
 | `src/cli/cmd/web.ts` | describe → tunnelcode | ~1% |
 | `src/cli/cmd/pr.ts` | describe → tunnelcode, spawn fix: `process.execPath` вместо hardcoded `"opencode"` | ~3% |
+| `src/cli/cmd/tui.ts` | `new Worker(file, { env: {...process.env} })` — Bun-воркер не наследует рантайм-мутации env, без этого TUI-сервер не видит `OPENCODE_CONFIG_CONTENT` из defaults.ts | ~3% |
 | `src/cli/cmd/tui/thread.ts` | describe → tunnelcode | ~1% |
 | `src/cli/cmd/tui/attach.ts` | describe → tunnelcode | ~1% |
 | `src/installation/index.ts` | +import gptunnel/urls, +`.tunnelcode/bin` в method(), curl→TUNNELCODE URL в upgrade(), +curl branch в latest() | ~10-15% |
